@@ -70,10 +70,44 @@ def signal_score(span: list[Sentence]) -> float:
     energy = np.array([s.energy_z for s in span])
     rate = np.array([s.rate_z for s in span])
     weights = np.array([s.duration for s in span]) + 1e-6
+    retention = np.array([s.retention_z for s in span])
     score = (
         50
         + 12 * float(np.average(energy, weights=weights))
         + 8 * float(energy.max())
         + 6 * float(np.average(rate, weights=weights))
+        + 10 * float(np.average(retention, weights=weights))
+        + 8 * float(retention.max())
     )
     return float(np.clip(score, 0, 100))
+
+
+def retention_residuals(curve: list[tuple[float, float]]) -> tuple[np.ndarray, np.ndarray]:
+    """Detrended audience retention.
+
+    YouTube's ``audienceWatchRatio`` by ``elapsedVideoTimeRatio`` always decays as viewers
+    leave, so raw values would just favour the start of the video. We fit the decay
+    (linear in log space) and keep what's left: bumps where people stayed or rewatched.
+    Returns (x positions 0-1, z-scored residuals).
+    """
+    pts = sorted((float(x), float(y)) for x, y in curve if y is not None and y > 0)
+    if len(pts) < 5:
+        return np.zeros(0), np.zeros(0)
+    x = np.array([p[0] for p in pts])
+    y = np.log(np.array([p[1] for p in pts]))
+    slope, intercept = np.polyfit(x, y, 1)
+    resid = y - (slope * x + intercept)
+    return x, _zscore(resid)
+
+
+def annotate_retention(sentences: list[Sentence], curve: list[tuple[float, float]] | None, duration: float) -> None:
+    if not curve or not sentences or duration <= 0:
+        return
+    xs, zs = retention_residuals(curve)
+    if not len(xs):
+        return
+    for s in sentences:
+        a, b = s.start / duration, s.end / duration
+        inside = zs[(xs >= a) & (xs <= b)]
+        val = float(inside.max()) if len(inside) else float(np.interp((a + b) / 2, xs, zs))
+        s.retention_z = float(np.clip(val, -3, 3))

@@ -58,6 +58,7 @@ class Sentence:
     gap_after: float = 0.0  # silence after this sentence (s)
     energy_z: float = 0.0  # loudness relative to the whole video (z-score)
     rate_z: float = 0.0  # speaking rate relative to the whole video (z-score)
+    retention_z: float = 0.0  # audience retention above the video's own decay trend (z-score)
     words: list[Word] = field(default_factory=list, repr=False)
 
     @property

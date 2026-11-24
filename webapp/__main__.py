@@ -1,7 +1,8 @@
 """Run the editor.
 
   python -m webapp serve [--data data] [--port 8000]
-  python -m webapp import VIDEO [--transcript T.json] [--selector heuristic] [--name 이름]
+  python -m webapp import VIDEO --email you@example.com [--transcript T.json] [--selector heuristic]
+  python -m webapp set-plan you@example.com pro        # until payments are connected
 """
 
 from __future__ import annotations
@@ -25,12 +26,16 @@ def main(argv: list[str] | None = None) -> int:
 
     i = sub.add_parser("import", help="create a project from a local video (and optional transcript)")
     i.add_argument("video")
+    i.add_argument("--email", required=True, help="owner account (must already be signed up)")
     i.add_argument("--transcript", help="transcript .json (skips speech recognition)")
     i.add_argument("--name")
     i.add_argument("--selector", choices=["claude", "heuristic"], default="claude")
     i.add_argument("--length", choices=["short", "medium", "long"], default="medium")
     i.add_argument("--top", type=int, default=10)
     i.add_argument("--prompt", default="")
+    sp = sub.add_parser("set-plan", help="change a user's plan (admin)")
+    sp.add_argument("email")
+    sp.add_argument("plan", choices=["free", "creator", "pro"])
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
 
@@ -47,11 +52,19 @@ def main(argv: list[str] | None = None) -> int:
         uvicorn.run(app, host=args.host, port=args.port)
         return 0
 
+    user = app.state.db.one("SELECT * FROM users WHERE email=?", (args.email or "").strip().lower())
+    if not user:
+        print(f"no account for {args.email}; sign up in the web app first", file=sys.stderr)
+        return 1
+    if args.cmd == "set-plan":
+        app.state.accounts.update(user["id"], plan=args.plan)
+        print(f"{args.email}: plan = {args.plan}")
+        return 0
+
     video = Path(args.video)
-    project = app.state.store.create(args.name or video.stem, video)
     cfg = {"length": args.length, "top": args.top, "prompt": args.prompt, "selector": args.selector}
-    jid = app.state.start_analysis(project["id"], args.transcript, cfg)
-    job = app.state.jobs.wait(jid, timeout=3600)
+    project = app.state.new_project(user["id"], args.name or video.stem, video, transcript_src=args.transcript, cfg=cfg)
+    job = app.state.jobs.wait(project["job_id"], timeout=3600)
     if job["status"] != "done":
         print(f"analysis failed: {job['error']}", file=sys.stderr)
         return 1

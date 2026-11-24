@@ -71,25 +71,38 @@ class Store:
             self.save(project)
             return project
 
-    def list(self) -> list[dict]:
+    def list(self, owner: str | None = None) -> list[dict]:
         out = []
         for d in (self.root / "projects").iterdir():
             f = d / "project.json"
             if f.exists():
                 p = json.loads(f.read_text(encoding="utf-8"))
-                out.append({k: p.get(k) for k in ("id", "name", "status", "error", "duration", "created_at")}
+                if owner is not None and p.get("owner") != owner:
+                    continue
+                out.append({k: p.get(k) for k in ("id", "name", "status", "error", "duration", "created_at", "source")}
                            | {"clip_count": len(p.get("clips", []))})
         return sorted(out, key=lambda p: p["created_at"] or 0, reverse=True)
 
-    def create(self, name: str, video_path: Path, *, move: bool = False, config: dict | None = None) -> dict:
+    def owner_of(self, pid: str) -> str | None:
+        return self.get(pid).get("owner")
+
+    def create(self, name: str, video_path: Path, *, move: bool = False, config: dict | None = None,
+               owner: str | None = None, source: dict | None = None) -> dict:
         pid = uuid.uuid4().hex[:10]
         d = self.root / "projects" / pid
         (d / "renders").mkdir(parents=True)
         (d / "cache").mkdir()
         dest = d / f"source{video_path.suffix.lower() or '.mp4'}"
-        (shutil.move if move else shutil.copyfile)(str(video_path), str(dest))
+        if move:
+            shutil.move(str(video_path), str(dest))
+        else:
+            try:  # campaign sources are shared read-only: hard-link instead of copying gigabytes
+                dest.hardlink_to(video_path)
+            except OSError:
+                shutil.copyfile(str(video_path), str(dest))
         project = {
-            "id": pid, "name": name, "video": dest.name, "transcript": None,
+            "id": pid, "name": name, "owner": owner, "source": source or {"type": "upload"},
+            "video": dest.name, "transcript": None,
             "status": "created", "error": None, "job_id": None, "config": config or {},
             "duration": None, "language": None, "clips": [],
             "created_at": time.time(), "updated_at": time.time(),

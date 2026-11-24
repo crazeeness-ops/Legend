@@ -3,6 +3,9 @@
 from __future__ import annotations
 
 import copy
+import re
+from html import escape as html_escape
+from urllib.parse import urlparse
 import shutil
 import subprocess
 import tempfile
@@ -11,8 +14,8 @@ from dataclasses import asdict
 from pathlib import Path
 
 import cv2
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import FastAPI, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -23,6 +26,8 @@ from highlight_engine.render.detect import HaarFaceDetector
 from highlight_engine.render.media import probe
 from highlight_engine.render.reframe import ReframePlan, analyze, apply_overrides
 
+from .auth import CSRF_HEADER, CSRF_VALUE, PLANS, SESSION_COOKIE, SESSION_DAYS, Accounts, AuthError, QuotaError, public_user
+from .db import DB
 from .jobs import Jobs
 from .store import NotFound, Store
 
@@ -42,6 +47,23 @@ class ClipPatch(BaseModel):
 
 class WordPatch(BaseModel):
     text: str
+
+
+class SignupBody(BaseModel):
+    email: str
+    password: str
+    name: str = ""
+    role: str = "creator"
+
+
+class LoginBody(BaseModel):
+    email: str
+    password: str
+
+
+class MePatch(BaseModel):
+    name: str | None = None
+    role: str | None = None
 
 
 def clip_signature(clip: dict) -> str:
@@ -68,14 +90,108 @@ def create_app(data_dir: str | Path = "data", *, workers: int = 2, public_url: s
                google_client_secret: str | None = None, youtube_http=None) -> FastAPI:
     store = Store(data_dir)
     jobs = Jobs(workers)
+    db = DB(Path(data_dir) / "legend.db")
+    accounts = Accounts(db)
     detector = HaarFaceDetector()
     plan_cache: dict[tuple, ReframePlan] = {}
     app = FastAPI(title="Legend Clips Editor")
-    app.state.store, app.state.jobs = store, jobs
+    app.state.store, app.state.jobs, app.state.db, app.state.accounts = store, jobs, db, accounts
+    secure_cookie = public_url.startswith("https://")
+    public_host = urlparse(public_url).netloc
 
     @app.exception_handler(NotFound)
     def not_found(_, exc: NotFound):
         return JSONResponse({"detail": f"not found: {exc}"}, status_code=404)
+
+    @app.exception_handler(QuotaError)
+    def quota(_, exc: QuotaError):
+        return JSONResponse({"detail": str(exc)}, status_code=402)
+
+    # ------------------------------------------------------------------ access control
+    project_path = re.compile(r"^/api/projects/([^/]+)")
+    job_path = re.compile(r"^/api/jobs/([^/]+)")
+
+    @app.middleware("http")
+    async def guard(request: Request, call_next):
+        path = request.url.path
+        request.state.user = accounts.user_for_session(request.cookies.get(SESSION_COOKIE))
+        if path.startswith(("/api/", "/oauth/")):
+            if request.method not in ("GET", "HEAD", "OPTIONS") and request.headers.get(CSRF_HEADER) != CSRF_VALUE:
+                return JSONResponse({"detail": "잘못된 요청입니다"}, status_code=403)
+            if path.startswith("/oauth/") and request.url.netloc != public_host:
+                # cookies are per host: send the user to the address the OAuth redirect uses
+                target = public_url.rstrip("/") + ("/#/channel" if path.endswith("/callback") else str(request.url.path)
+                                                   + ("?" + request.url.query if request.url.query else ""))
+                return RedirectResponse(target, status_code=303)
+            if path.startswith("/oauth/") and request.state.user is None:
+                return HTMLResponse(
+                    "<!doctype html><meta charset=utf-8><title>로그인 필요</title><body style='font-family:sans-serif;"
+                    "background:#0f1115;color:#e8eaf0;padding:40px'><h2>로그인 세션을 찾을 수 없어요</h2>"
+                    f"<p>Legend Clips에 로그인한 뒤 다시 연결해 주세요. 항상 <b>{html_escape(public_url)}</b> 주소로 접속해야 해요.</p>"
+                    f"<a style='color:#ff4d6d' href='{html_escape(public_url)}/#/login'>로그인하러 가기</a>", status_code=401)
+            if not path.startswith("/api/auth/") and request.state.user is None:
+                return JSONResponse({"detail": "로그인이 필요합니다"}, status_code=401)
+            uid = request.state.user["id"] if request.state.user else None
+            m = project_path.match(path)
+            if m:  # someone else's project is indistinguishable from a missing one
+                try:
+                    if store.owner_of(m.group(1)) != uid:
+                        raise NotFound(m.group(1))
+                except NotFound:
+                    return JSONResponse({"detail": "not found"}, status_code=404)
+            m = job_path.match(path)
+            if m and (jobs.get(m.group(1)) or {}).get("owner") != uid:
+                return JSONResponse({"detail": "not found"}, status_code=404)
+        return await call_next(request)
+
+    def user_of(request: Request) -> dict:
+        return request.state.user
+
+    # ------------------------------------------------------------------ auth
+    def set_session(response: Response, uid: str) -> None:
+        response.set_cookie(SESSION_COOKIE, accounts.create_session(uid), max_age=SESSION_DAYS * 86400,
+                            httponly=True, samesite="lax", secure=secure_cookie, path="/")
+
+    @app.post("/api/auth/signup")
+    def signup(body: SignupBody, response: Response):
+        try:
+            u = accounts.signup(body.email, body.password, body.name, body.role)
+        except AuthError as e:
+            raise HTTPException(400, str(e))
+        set_session(response, u["id"])
+        return {"user": public_user(u)}
+
+    @app.post("/api/auth/login")
+    def login(body: LoginBody, response: Response):
+        try:
+            u = accounts.login(body.email, body.password)
+        except AuthError as e:
+            raise HTTPException(401, str(e))
+        set_session(response, u["id"])
+        return {"user": public_user(u)}
+
+    @app.post("/api/auth/logout")
+    def logout(request: Request, response: Response):
+        accounts.end_session(request.cookies.get(SESSION_COOKIE))
+        response.delete_cookie(SESSION_COOKIE, path="/")
+        return {"ok": True}
+
+    @app.get("/api/auth/me")
+    def me(request: Request):
+        u = user_of(request)
+        if not u:
+            raise HTTPException(401, "로그인이 필요합니다")
+        return {"user": public_user(u), "usage": accounts.usage(u["id"]), "plans": PLANS}
+
+    @app.patch("/api/auth/me")
+    def patch_me(request: Request, body: MePatch):
+        u = user_of(request)
+        if not u:
+            raise HTTPException(401, "로그인이 필요합니다")
+        try:
+            return {"user": public_user(accounts.update(u["id"], name=body.name, role=body.role))}
+        except AuthError as e:
+            raise HTTPException(400, str(e))
 
     # ------------------------------------------------------------------ analysis job
     def analyze_project(pid: str, transcript_src: str | None, cfg: dict, *, progress) -> dict:
@@ -83,29 +199,53 @@ def create_app(data_dir: str | Path = "data", *, workers: int = 2, public_url: s
         d = store.dir(pid)
         video = str(store.video_path(pid))
         lo, hi = LENGTH_PRESETS.get(cfg.get("length", "medium"), LENGTH_PRESETS["medium"])
+        source = store.get(pid).get("source") or {}
+        if source.get("max_clip_sec"):  # campaign rule
+            hi = min(hi, float(source["max_clip_sec"]))
+            lo = min(lo, max(MIN_CLIP, hi * 0.5))
         config = EngineConfig(min_len=lo, max_len=hi, top_n=int(cfg.get("top", 10)),
                               user_prompt=cfg.get("prompt") or None, language=cfg.get("language") or None)
         selector = make_selector(cfg.get("selector", "claude"))
+        retention = (store.get(pid).get("retention") or {}).get("curve")
         if transcript_src:
             shutil.copyfile(transcript_src, d / "transcript.json")
             progress(0.3, "하이라이트 분석 중")
-            result = run(str(d / "transcript.json"), selector, config, audio=video)
+            result = run(str(d / "transcript.json"), selector, config, audio=video, retention=retention)
         else:
             progress(0.05, "음성 인식 중 (영상 길이에 따라 수 분 소요)")
-            result = run(video, selector, config, transcript_out=str(d / "transcript.json"))
+            result = run(video, selector, config, transcript_out=str(d / "transcript.json"), retention=retention)
         store.set_clips(pid, result)
         store.update(pid, lambda p: p.update(status="ready", transcript="transcript.json"))
         return {"clips": len(result["clips"])}
 
     def start_analysis(pid: str, transcript_src: str | None, cfg: dict) -> str:
+        owner = store.owner_of(pid)
+
         def fail(err: str) -> None:
             store.update(pid, lambda p: p.update(status="error", error=err))
+            if owner:
+                accounts.refund(owner, pid)
 
-        jid = jobs.submit("analyze", analyze_project, pid, transcript_src, cfg, on_error=fail, project=pid)
+        jid = jobs.submit("analyze", analyze_project, pid, transcript_src, cfg, on_error=fail, project=pid, owner=owner)
         store.update(pid, lambda p: p.update(job_id=jid, status="queued", config=cfg))
         return jid
 
-    app.state.start_analysis = start_analysis
+    def new_project(owner: str, name: str, video_path: Path, *, transcript_src: str | None, cfg: dict,
+                    move: bool = False, source: dict | None = None, extra: dict | None = None) -> dict:
+        """Create a project, charge the owner's monthly minutes, start analysis."""
+        minutes = probe(str(video_path)).duration / 60
+        project = store.create(name, video_path, move=move, owner=owner, source=source)
+        if extra:
+            store.update(project["id"], lambda p: p.update(extra))
+        try:
+            accounts.charge(owner, minutes, project["id"])
+        except QuotaError:
+            store.delete(project["id"])
+            raise
+        start_analysis(project["id"], transcript_src, cfg)
+        return store.get(project["id"])
+
+    app.state.start_analysis, app.state.new_project = start_analysis, new_project
 
     # ------------------------------------------------------------------ catalog
     @app.get("/api/presets")
@@ -115,11 +255,12 @@ def create_app(data_dir: str | Path = "data", *, workers: int = 2, public_url: s
 
     # ------------------------------------------------------------------ projects
     @app.get("/api/projects")
-    def list_projects():
-        return store.list()
+    def list_projects(request: Request):
+        return store.list(owner=user_of(request)["id"])
 
     @app.post("/api/projects")
     def create_project(
+        request: Request,
         video: UploadFile = File(...),
         transcript: UploadFile | None = File(None),
         name: str = Form(""),
@@ -127,7 +268,9 @@ def create_app(data_dir: str | Path = "data", *, workers: int = 2, public_url: s
         top: int = Form(10),
         prompt: str = Form(""),
         selector: str = Form("claude"),
+        youtube_video_id: str = Form(""),
     ):
+        user = user_of(request)
         suffix = Path(video.filename or "").suffix.lower()
         if suffix not in VIDEO_EXT:
             raise HTTPException(400, f"지원하지 않는 영상 형식입니다: {suffix or '(없음)'}")
@@ -147,10 +290,17 @@ def create_app(data_dir: str | Path = "data", *, workers: int = 2, public_url: s
             tpath = tmpdir / "transcript.json"
             with tpath.open("wb") as f:
                 shutil.copyfileobj(transcript.file, f)
-        project = store.create(name.strip() or Path(video.filename).stem, vpath, move=True)
         cfg = {"length": length, "top": top, "prompt": prompt.strip(), "selector": selector}
-        start_analysis(project["id"], str(tpath) if tpath else None, cfg)
-        return store.get(project["id"])
+        source, extra = {"type": "upload"}, None
+        if youtube_video_id:  # one of the creator's own channel videos: attach its audience retention
+            source, extra = app.state.own_video_source(user["id"], youtube_video_id, vpath)
+        try:
+            return new_project(user["id"], name.strip() or Path(video.filename).stem, vpath,
+                               transcript_src=str(tpath) if tpath else None, cfg=cfg, move=True, source=source,
+                               extra=extra)
+        except QuotaError:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+            raise
 
     @app.get("/api/projects/{pid}")
     def get_project(pid: str):
@@ -185,14 +335,17 @@ def create_app(data_dir: str | Path = "data", *, workers: int = 2, public_url: s
     # ------------------------------------------------------------------ clips
     @app.patch("/api/projects/{pid}/clips/{cid}")
     def patch_clip(pid: str, cid: str, body: ClipPatch):
-        duration = store.get(pid)["duration"] or 0
+        project = store.get(pid)
+        duration = project["duration"] or 0
+        max_len = min(MAX_CLIP, float((project.get("source") or {}).get("max_clip_sec") or MAX_CLIP))
 
         def fn(p: dict) -> None:
             c = store.find_clip(p, cid)
             start = c["start"] if body.start is None else round(max(0.0, body.start), 3)
             end = c["end"] if body.end is None else round(min(duration, body.end), 3)
-            if not MIN_CLIP <= end - start <= MAX_CLIP:
-                raise HTTPException(400, f"클립 길이는 {MIN_CLIP:.0f}~{MAX_CLIP:.0f}초여야 합니다")
+            if not MIN_CLIP <= end - start <= max_len:
+                raise HTTPException(400, f"클립 길이는 {MIN_CLIP:.0f}~{max_len:.0f}초여야 합니다"
+                                    + (" (캠페인 규칙)" if max_len < MAX_CLIP else ""))
             c["start"], c["end"] = start, end
             if body.title is not None:
                 c["title"] = body.title.strip()[:80]
@@ -281,7 +434,7 @@ def create_app(data_dir: str | Path = "data", *, workers: int = 2, public_url: s
             r = render_clip(pid, cid, progress)
             return {"file": r["file"], "url": f"/api/projects/{pid}/files/{r['file']}", "timings": r["timings"]}
 
-        jid = jobs.submit("render", do_render, project=pid, clip=cid)
+        jid = jobs.submit("render", do_render, project=pid, clip=cid, owner=store.owner_of(pid))
         return {"job_id": jid}
 
     @app.get("/api/projects/{pid}/files/{name}")
@@ -333,12 +486,14 @@ def create_app(data_dir: str | Path = "data", *, workers: int = 2, public_url: s
         return j
 
     # ------------------------------------------------------------------ YouTube publishing
-    from . import publish
-    from .youtube import OAuthConfig, YouTubeAccount
+    from . import campaigns, channel, publish
+    from .youtube import AccountRegistry, OAuthConfig
 
     oauth = OAuthConfig.load(google_client_secret, public_url.rstrip("/") + "/oauth/google/callback")
-    app.state.youtube = YouTubeAccount(data_dir, oauth, http=youtube_http)
+    app.state.youtube = AccountRegistry(data_dir, oauth, http=youtube_http)
     publish.register(app, app.state.youtube)
+    channel.register(app, app.state.youtube)
+    campaigns.register(app, app.state.youtube)
 
     # ------------------------------------------------------------------ frontend
     app.mount("/static", StaticFiles(directory=STATIC), name="static")

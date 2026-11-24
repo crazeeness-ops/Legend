@@ -11,7 +11,7 @@ from typing import Protocol
 from .models import Candidate, Sentence, Transcript
 from .postprocess import finalize
 from .segment import split_sentences
-from .signals import annotate_sentences, load_audio_rms
+from .signals import annotate_retention, annotate_sentences, load_audio_rms
 
 log = logging.getLogger(__name__)
 
@@ -48,6 +48,7 @@ def run(
     *,
     audio: str | None = None,
     transcript_out: str | None = None,
+    retention: list[tuple[float, float]] | None = None,
 ) -> dict:
     """Run the engine.
 
@@ -79,6 +80,7 @@ def run(
         except Exception as e:  # signals are optional
             log.warning("audio analysis skipped: %s", e)
     annotate_sentences(sentences, rms)
+    annotate_retention(sentences, retention, transcript.duration)
     timings["signals"] = time.perf_counter() - t1
 
     t2 = time.perf_counter()
@@ -96,6 +98,7 @@ def run(
         candidates, sentences,
         min_len=cfg.min_len, max_len=cfg.max_len, top_n=cfg.top_n,
         total_duration=transcript.duration,
+        llm_weight=0.6 if retention else 0.7,  # real audience data earns a bigger say
     )
     timings["total"] = time.perf_counter() - t0
 
@@ -106,7 +109,7 @@ def run(
         "sentence_count": len(sentences),
         "candidate_count": len(candidates),
         "config": {"min_len": cfg.min_len, "max_len": cfg.max_len, "top_n": cfg.top_n,
-                   "user_prompt": cfg.user_prompt},
+                   "user_prompt": cfg.user_prompt, "retention": bool(retention)},
         "timings_sec": {k: round(v, 2) for k, v in timings.items()},
         "clips": [c.to_dict() for c in clips],
     }

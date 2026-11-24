@@ -100,7 +100,7 @@ def test_oauth_flow_state_and_disconnect(tmp_path):
     with pytest.raises(YouTubeError):
         acc.finish_auth("code-ok", "forged-state")
     acc.disconnect()
-    assert not acc.status()["connected"] and fake.revoked == ["rt-1"]
+    assert not acc.status()["connected"] and len(fake.revoked) == 1 and fake.revoked[0].startswith("rt-main")
 
 
 def test_resumable_upload_survives_errors(tmp_path):
@@ -162,10 +162,11 @@ def app_env(tmp_path_factory):
     fake = FakeGoogle()
     mp = pytest.MonkeyPatch()
     mp.setenv("LEGEND_GOOGLE_BASE", FAKE)
-    app = create_app(d / "data", google_client_secret=str(d / "client.json"),
+    app = create_app(d / "data", google_client_secret=str(d / "client.json"), public_url="http://testserver",
                      youtube_http=httpx.Client(transport=httpx.MockTransport(fake.handle)))
     app.state.youtube.sleep = lambda s: None
-    client = TestClient(app)
+    client = TestClient(app, headers={"X-Requested-With": "legend"})
+    assert client.post("/api/auth/signup", json={"email": "pub@test.kr", "password": "password123"}).status_code == 200
     with open(d / "v.mp4", "rb") as v, open(d / "t.json", "rb") as tf:
         r = client.post("/api/projects", files={"video": ("v.mp4", v, "video/mp4"), "transcript": ("t.json", tf, "application/json")},
                         data={"length": "short", "top": "3", "selector": "heuristic"})
@@ -179,7 +180,8 @@ def app_env(tmp_path_factory):
 def test_publish_requires_connection_then_connects(app_env):
     c, pid = app_env.client, app_env.pid
     assert c.get("/api/youtube/status").json() == {"configured": True, "connected": False, "channel": None,
-                                                   "redirect_uri": "http://127.0.0.1:8000/oauth/google/callback"}
+                                                   "analytics": False,
+                                                   "redirect_uri": "http://testserver/oauth/google/callback"}
     assert c.post(f"/api/projects/{pid}/clips/c1/publish").status_code == 400
 
     r = c.get("/oauth/google/start", params={"return_to": "//evil.example"}, follow_redirects=False)

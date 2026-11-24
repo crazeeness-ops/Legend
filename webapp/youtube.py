@@ -33,6 +33,7 @@ import httpx
 SCOPES = [
     "https://www.googleapis.com/auth/youtube.upload",
     "https://www.googleapis.com/auth/youtube.readonly",
+    "https://www.googleapis.com/auth/yt-analytics.readonly",  # audience retention for highlight picking
 ]
 PRIVACY = ("public", "unlisted", "private")
 CHUNK = 8 * 1024 * 1024  # must be a multiple of 256 KiB
@@ -50,6 +51,7 @@ class Endpoints:
     revoke: str = "https://oauth2.googleapis.com/revoke"
     api: str = "https://www.googleapis.com/youtube/v3"
     upload: str = "https://www.googleapis.com/upload/youtube/v3/videos"
+    analytics: str = "https://youtubeanalytics.googleapis.com/v2/reports"
 
     @classmethod
     def from_env(cls) -> "Endpoints":
@@ -59,7 +61,7 @@ class Endpoints:
             return cls()
         base = base.rstrip("/")
         return cls(f"{base}/o/oauth2/v2/auth", f"{base}/token", f"{base}/revoke", f"{base}/youtube/v3",
-                   f"{base}/upload/youtube/v3/videos")
+                   f"{base}/upload/youtube/v3/videos", f"{base}/v2/reports")
 
 
 @dataclass
@@ -168,6 +170,7 @@ class YouTubeAccount:
         acc = self.load()
         return {"configured": self.configured, "connected": bool(acc),
                 "channel": acc.get("channel") if acc else None,
+                "analytics": bool(acc and acc.get("analytics")),
                 "redirect_uri": self.config.redirect_uri if self.config else None}
 
     # ---- OAuth
@@ -199,7 +202,8 @@ class YouTubeAccount:
         if SCOPES[0] not in granted:
             raise YouTubeError("업로드 권한이 허용되지 않았습니다. 연결할 때 모든 권한을 체크하세요")
         data = {"access_token": tok["access_token"], "refresh_token": tok["refresh_token"],
-                "expires_at": time.time() + int(tok.get("expires_in", 3600)), "connected_at": time.time()}
+                "expires_at": time.time() + int(tok.get("expires_in", 3600)), "connected_at": time.time(),
+                "analytics": SCOPES[2] in granted}
         self._save(data)
         try:
             data["channel"] = self._channel(data["access_token"])
@@ -246,6 +250,66 @@ class YouTubeAccount:
         sn = items[0]["snippet"]
         thumb = (sn.get("thumbnails") or {}).get("default", {}).get("url")
         return {"id": items[0]["id"], "title": sn.get("title"), "thumbnail": thumb}
+
+    # ---- reads (channel videos, stats, retention)
+    def _get(self, url: str, params: dict) -> dict:
+        for retry in (False, True):
+            r = self.http.get(url, params=params, headers={"Authorization": f"Bearer {self.access_token(force_refresh=retry)}"})
+            if r.status_code == 401 and not retry:
+                continue
+            if r.status_code != 200:
+                raise YouTubeError(_api_error(r))
+            return r.json()
+        raise YouTubeError("YouTube 인증 오류")
+
+    def my_videos(self, limit: int = 200) -> list[dict]:
+        """The connected channel's uploads with statistics, most viewed first."""
+        ch = self._get(f"{self.ep.api}/channels", {"part": "contentDetails", "mine": "true"})
+        items = ch.get("items") or []
+        if not items:
+            return []
+        uploads = items[0]["contentDetails"]["relatedPlaylists"]["uploads"]
+        ids, token = [], None
+        while len(ids) < limit:
+            params = {"part": "contentDetails", "playlistId": uploads, "maxResults": 50}
+            if token:
+                params["pageToken"] = token
+            page = self._get(f"{self.ep.api}/playlistItems", params)
+            ids += [it["contentDetails"]["videoId"] for it in page.get("items", [])]
+            token = page.get("nextPageToken")
+            if not token:
+                break
+        videos = self.video_details(ids[:limit])
+        return sorted(videos, key=lambda v: v["views"], reverse=True)
+
+    def video_details(self, ids: list[str]) -> list[dict]:
+        out = []
+        for i in range(0, len(ids), 50):
+            page = self._get(f"{self.ep.api}/videos", {"part": "snippet,statistics,contentDetails",
+                                                       "id": ",".join(ids[i:i + 50]), "maxResults": 50})
+            for v in page.get("items", []):
+                sn, st = v.get("snippet", {}), v.get("statistics", {})
+                thumbs = sn.get("thumbnails") or {}
+                out.append({
+                    "id": v["id"], "title": sn.get("title", ""), "channel_id": sn.get("channelId"),
+                    "channel_title": sn.get("channelTitle", ""), "published_at": sn.get("publishedAt"),
+                    "thumbnail": (thumbs.get("medium") or thumbs.get("default") or {}).get("url"),
+                    "duration": parse_duration(v.get("contentDetails", {}).get("duration", "")),
+                    "views": int(st.get("viewCount", 0)), "likes": int(st.get("likeCount", 0)),
+                    "comments": int(st.get("commentCount", 0)),
+                })
+        return out
+
+    def retention(self, video_id: str) -> list[tuple[float, float]]:
+        """Audience retention curve: (position 0-1, share of viewers still watching)."""
+        acc = self.load() or {}
+        if not acc.get("analytics"):
+            raise YouTubeError("시청 유지율 권한이 없습니다. 채널을 다시 연결하세요")
+        data = self._get(self.ep.analytics, {
+            "ids": "channel==MINE", "metrics": "audienceWatchRatio", "dimensions": "elapsedVideoTimeRatio",
+            "filters": f"video=={video_id}", "startDate": "2005-01-01",
+            "endDate": datetime.now(timezone.utc).strftime("%Y-%m-%d")})
+        return [(float(r[0]), float(r[1])) for r in data.get("rows") or []]
 
     # ---- upload
     def upload(self, path: str | Path, meta: VideoMeta, progress: Callable[[float], None] | None = None,
@@ -319,6 +383,39 @@ class YouTubeAccount:
         if r.status_code in (200, 201):
             return total, r.json()
         return None, None
+
+
+def parse_duration(iso: str) -> float:
+    """ISO 8601 duration (PT1H2M3S) to seconds."""
+    import re
+
+    m = re.fullmatch(r"P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?", iso or "")
+    if not m:
+        return 0.0
+    d, h, mi, s = (float(x) if x else 0.0 for x in m.groups())
+    return d * 86400 + h * 3600 + mi * 60 + s
+
+
+class AccountRegistry:
+    """One YouTube connection per Legend user (stored under data/users/<id>/youtube/)."""
+
+    def __init__(self, data_dir: str | Path, config: OAuthConfig | None, http: httpx.Client | None = None) -> None:
+        self.root = Path(data_dir) / "users"
+        self.config = config
+        self.http = http
+        self._accounts: dict[str, YouTubeAccount] = {}
+        self._lock = threading.Lock()
+        self.sleep: Callable[[float], None] = time.sleep
+
+    def for_user(self, uid: str) -> YouTubeAccount:
+        if not uid.isalnum():
+            raise YouTubeError("잘못된 사용자")
+        with self._lock:
+            if uid not in self._accounts:
+                acc = YouTubeAccount(self.root / uid, self.config, http=self.http)
+                acc.sleep = lambda s: self.sleep(s)
+                self._accounts[uid] = acc
+            return self._accounts[uid]
 
 
 def _next_offset(r: httpx.Response) -> int:

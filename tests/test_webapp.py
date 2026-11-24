@@ -33,7 +33,8 @@ def media(tmp_path_factory):
 @pytest.fixture(scope="module")
 def client(media, tmp_path_factory):
     app = create_app(tmp_path_factory.mktemp("data"))
-    with TestClient(app) as c:
+    with TestClient(app, headers={"X-Requested-With": "legend"}) as c:
+        assert c.post("/api/auth/signup", json={"email": "editor@test.kr", "password": "password123"}).status_code == 200
         c.app_ref = app
         yield c
 

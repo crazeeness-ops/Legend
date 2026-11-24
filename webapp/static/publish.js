@@ -1,5 +1,5 @@
 // YouTube publishing UI: channel chip, per-clip "게시" tab, bulk scheduling dialog.
-import { h, api, toast, debounce } from "./util.js";
+import { h, api, toast, debounce, modal } from "./util.js";
 
 let YT = null; // cached /api/youtube/status
 
@@ -29,14 +29,6 @@ export const PUBLISH_BADGE = {
   queued: ["warn", "게시 대기"], rendering: ["warn", "렌더링 중"], uploading: ["warn", "업로드 중"],
   uploaded: ["ok", "YouTube 게시됨"], scheduled: ["ok", "예약됨"], error: ["err", "게시 실패"],
 };
-
-function modal(title, body, onClose) {
-  const close = () => { overlay.remove(); onClose?.(); };
-  const overlay = h("div", { class: "modal-bg", onclick: e => { if (e.target === overlay) close(); } },
-    h("div", { class: "modal" }, h("div", { class: "row" }, h("h2", { class: "grow" }, title), h("button", { class: "ghost small", onclick: close }, "닫기")), body));
-  document.body.append(overlay);
-  return close;
-}
 
 export function setupGuide(st) {
   return modal("YouTube 연결 설정 안내", h("div", { class: "hint", style: { fontSize: "13px" } },

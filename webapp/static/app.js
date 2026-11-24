@@ -1,6 +1,7 @@
-import { h, api, toast, fmt, debounce, clamp } from "./util.js";
+import { h, api, toast, fmt, debounce, clamp, upload, modal } from "./util.js";
 import { Preview } from "./preview.js";
 import { ytChip, publishTab, openBulk, PUBLISH_BADGE } from "./publish.js";
+import { channelView, marketView, campaignView } from "./market.js";
 
 const app = document.getElementById("app");
 let cleanup = () => {};
@@ -18,17 +19,88 @@ async function loadPresets() {
   return PRESETS;
 }
 
+let ME = null; // { user, usage, plans }
+
+async function refreshMe() {
+  ME = await api("/api/auth/me").catch(() => null);
+  return ME;
+}
+
 function topbar(...right) {
+  const section = location.hash.startsWith("#/channel") ? "channel" : location.hash.startsWith("#/market") ? "market" : "home";
+  const nav = [["home", "#/", "내 프로젝트"], ["channel", "#/channel", "내 채널"], ["market", "#/market", "클리핑 마켓"]];
+  const u = ME?.usage;
   return h("header", { class: "topbar" },
-    h("a", { class: "logo", href: "#/" }, "Legend", h("span", {}, " Clips")), ...right);
+    h("a", { class: "logo", href: "#/" }, "Legend", h("span", {}, " Clips")),
+    h("nav", { class: "mainnav" }, nav.map(([id, href, label]) => h("a", { href, class: section === id ? "on" : "" }, label))),
+    ...(right.length ? right : [h("span", { class: "grow" })]),
+    u ? h("button", { class: "small usage-chip", title: "이번 달 사용량", onclick: plansModal },
+      h("span", {}, `${u.plan_label}`), h("span", { class: "muted" }, ` ${Math.round(u.used_minutes)}/${u.limit_minutes}분`)) : null,
+    ytChip(),
+    ME ? h("button", { class: "small ghost", title: ME.user.email, onclick: async () => {
+      await api("/api/auth/logout", { method: "POST" }); location.replace("/#/login"); location.reload();
+    } }, "로그아웃") : null);
+}
+
+function plansModal() {
+  const cur = ME.usage.plan;
+  modal("요금제", h("div", {},
+    h("p", { class: "muted" }, `이번 달 ${ME.usage.used_minutes}분 사용 / ${ME.usage.limit_minutes}분 (원본 영상 길이 기준)`),
+    h("div", { class: "plans" }, Object.entries(ME.plans).map(([id, p]) => h("div", { class: "plan" + (id === cur ? " on" : "") },
+      h("b", {}, p.label), h("div", { class: "price" }, p.price_krw ? `월 ${p.price_krw.toLocaleString("ko-KR")}원` : "무료"),
+      h("div", { class: "muted" }, `월 ${p.minutes}분 분석`), id === cur ? h("span", { class: "badge ok" }, "현재") : null))),
+    h("p", { class: "hint" }, "결제 연동은 준비 중이에요. 지금은 관리자가 요금제를 바꿔 드려요.")));
+}
+
+// ------------------------------------------------------------------ auth
+function authView(mode) {
+  const email = h("input", { type: "email", placeholder: "you@example.com", autocomplete: "email" });
+  const pw = h("input", { type: "password", placeholder: "8자 이상", autocomplete: mode === "signup" ? "new-password" : "current-password" });
+  const name = h("input", { type: "text", placeholder: "채널명이나 이름" });
+  let role = "creator";
+  const roleCards = h("div", { class: "role-cards" });
+  const drawRoles = () => roleCards.replaceChildren(...[
+    ["creator", "🎬 내 영상으로 숏츠 만들기", "긴 영상이 있는 유튜버·팟캐스터·강사"],
+    ["clipper", "✂️ 클리핑으로 수익 내기", "영상이 없어도 OK, 크리에이터가 허락한 영상을 클립으로"],
+  ].map(([id, t, d]) => h("button", { type: "button", class: "role" + (role === id ? " on" : ""), onclick: () => { role = id; drawRoles(); } },
+    h("b", {}, t), h("span", { class: "muted" }, d))));
+  drawRoles();
+  const go = h("button", { class: "primary", type: "submit", style: { width: "100%" } }, mode === "signup" ? "가입하고 시작하기" : "로그인");
+  const form = h("form", { class: "card auth-card", onsubmit: async e => {
+    e.preventDefault(); go.disabled = true;
+    try {
+      await api(`/api/auth/${mode}`, { method: "POST", body: mode === "signup"
+        ? { email: email.value, password: pw.value, name: name.value, role } : { email: email.value, password: pw.value } });
+      await refreshMe();
+      location.replace(ME.user.role === "clipper" && mode === "signup" ? "/#/market" : "/#/");
+      location.reload(); // drop any state cached for a previous account
+    } catch (err) { toast(err.message, true); go.disabled = false; }
+  } },
+    h("h1", {}, mode === "signup" ? "Legend Clips 시작하기" : "다시 오신 걸 환영해요"),
+    mode === "signup" ? [h("label", {}, "어떻게 쓰실 건가요?"), roleCards] : null,
+    h("div", { class: "field" }, h("label", {}, "이메일"), email),
+    h("div", { class: "field" }, h("label", {}, "비밀번호"), pw),
+    mode === "signup" ? h("div", { class: "field" }, h("label", {}, "이름"), name) : null,
+    go,
+    h("p", { class: "hint", style: { textAlign: "center" } }, mode === "signup"
+      ? ["이미 계정이 있나요? ", h("a", { href: "#/login" }, "로그인")] : ["처음이신가요? ", h("a", { href: "#/signup" }, "무료로 가입")]));
+  app.replaceChildren(h("header", { class: "topbar" }, h("a", { class: "logo", href: "#/" }, "Legend", h("span", {}, " Clips"))), h("main", { class: "auth" }, form));
+  email.focus();
 }
 
 // ------------------------------------------------------------------ router
 async function route() {
   cleanup(); cleanup = () => {};
-  const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+  const [path, query] = location.hash.replace(/^#\/?/, "").split("?");
+  const parts = path.split("/").filter(Boolean);
+  if (parts[0] === "login" || parts[0] === "signup") return authView(parts[0]);
+  if (!ME && !(await refreshMe())) { location.hash = "#/login"; return; }
+  refreshMe(); // keep the usage chip fresh in the background
   try {
     if (parts[0] === "p" && parts[1]) await projectView(parts[1], parts[2]);
+    else if (parts[0] === "channel") await channelView(app, topbar);
+    else if (parts[0] === "market" && parts[1]) await campaignView(app, topbar, parts[1]);
+    else if (parts[0] === "market") await marketView(app, topbar, query || "open");
     else await homeView();
   } catch (e) {
     app.replaceChildren(topbar(), h("div", { class: "center-msg" }, h("h2", {}, "문제가 발생했어요"), h("p", { class: "muted" }, e.message),
@@ -66,7 +138,7 @@ async function homeView() {
   drop.ondragleave = () => drop.classList.toggle("has", !!state.video);
   drop.ondrop = e => { e.preventDefault(); setVideo(e.dataTransfer.files[0]); };
 
-  submit.onclick = () => {
+  submit.onclick = async () => {
     const form = new FormData();
     form.append("video", state.video);
     if (state.transcript) form.append("transcript", state.transcript);
@@ -75,23 +147,18 @@ async function homeView() {
     form.append("top", top.value);
     form.append("prompt", prompt.value);
     form.append("selector", selector.value);
-    const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/api/projects");
     progress.style.display = "block";
     submit.disabled = true; submit.textContent = "업로드 중…";
-    xhr.upload.onprogress = e => { if (e.lengthComputable) bar.style.width = `${(e.loaded / e.total) * 100}%`; };
-    xhr.onload = () => {
-      const data = JSON.parse(xhr.responseText || "{}");
-      if (xhr.status >= 400) { toast(data.detail || "업로드 실패", true); submit.disabled = false; submit.textContent = "클립 만들기"; return; }
+    try {
+      const data = await upload("/api/projects", form, f => (bar.style.width = `${f * 100}%`));
       location.hash = `#/p/${data.id}`;
-    };
-    xhr.onerror = () => { toast("네트워크 오류", true); submit.disabled = false; };
-    xhr.send(form);
+    } catch (e) { toast(e.message, true); submit.disabled = false; submit.textContent = "클립 만들기"; }
   };
 
   const list = projects.length ? h("div", { class: "projects" }, projects.map(p =>
     h("a", { class: "project-item", href: `#/p/${p.id}` },
-      h("div", { class: "grow" }, h("div", { style: { fontWeight: 700 } }, p.name),
+      h("div", { class: "grow" }, h("div", { style: { fontWeight: 700 } }, p.name,
+        p.source?.type === "campaign" ? h("span", { class: "badge src" }, "캠페인") : p.source?.type === "own_channel" ? h("span", { class: "badge src" }, "내 채널") : null),
         h("div", { class: "muted", style: { fontSize: "12px", marginTop: "3px" } },
           new Date(p.created_at * 1000).toLocaleString("ko-KR"), p.duration ? ` · 원본 ${fmt(p.duration, 0)}` : "", ` · 클립 ${p.clip_count}개`)),
       h("span", { class: "badge " + ({ ready: "ok", error: "err" }[p.status] || "warn") }, STATUS_LABEL[p.status] || p.status),
@@ -102,7 +169,7 @@ async function homeView() {
       } }, "삭제"))))
     : h("div", { class: "empty" }, "아직 프로젝트가 없어요. 왼쪽에서 영상을 올려보세요.");
 
-  app.replaceChildren(topbar(h("span", { class: "grow" }), ytChip()), h("main", { class: "home" },
+  app.replaceChildren(topbar(), h("main", { class: "home" },
     h("section", { class: "card" }, h("h2", {}, "새 영상으로 숏츠 만들기"),
       h("div", { class: "field" }, drop, videoInput),
       h("div", { class: "field" }, h("label", {}, "프로젝트 이름"), nameIn),
@@ -111,8 +178,18 @@ async function homeView() {
       h("div", { class: "field" }, h("label", {}, "하이라이트 추천 방식"), selector),
       h("div", { class: "field" }, h("label", {}, "자막 파일 (선택, .json)"), h("div", { class: "row" }, h("button", { class: "small", onclick: () => trInput.click() }, "선택"), trLabel), trInput),
       h("div", { class: "field" }, progress), submit,
-      h("p", { class: "hint" }, "본인이 권리를 가진 영상만 업로드하세요.")),
+      h("p", { class: "hint" }, "본인이 권리를 가진 영상만 업로드하세요. 영상이 없다면 ", h("a", { href: "#/market" }, "클리핑 마켓"), "에서 시작해 보세요.")),
     h("section", {}, h("h2", { style: { fontSize: "16px", margin: "0 0 14px" } }, "내 프로젝트"), list)));
+}
+
+function sourceBanner(project) {
+  const src = project.source || {};
+  if (src.type === "campaign") return h("div", { class: "src-banner" }, "📣 ", h("a", { href: `#/market/${src.campaign_id}` }, src.campaign_title),
+    ` 캠페인 클립 · 최대 ${src.max_clip_sec}초 · YouTube에 올리면 자동 제출되고 출처가 표기돼요`);
+  if (src.type === "own_channel") return h("div", { class: "src-banner" }, "📈 ",
+    project.retention ? "시청 유지율 반영: 실제 시청자가 오래 본 구간을 우선 추천했어요" : "내 채널 영상 (시청 유지율 데이터는 아직 없어요)",
+    " · ", h("a", { href: src.url, target: "_blank", rel: "noopener" }, "원본 보기"));
+  return null;
 }
 
 // ------------------------------------------------------------------ project / waiting
@@ -525,10 +602,11 @@ function editorView(project, initialClip) {
 
   const renderTop = h("button", { class: "primary", onclick: () => { S.tab = "export"; renderTabs(); renderTab(); startRender(); } }, "렌더링");
   app.replaceChildren(
-    topbar(h("span", { class: "crumb grow" }, "/ ", project.name), saveState, ytChip(), renderTop),
+    topbar(h("span", { class: "crumb grow" }, "/ ", project.name), saveState, renderTop),
     h("div", { class: "editor" },
       clipList,
       h("section", { class: "stage" },
+        sourceBanner(project),
         h("div", { class: "viewer" }, preview.el, video),
         h("div", { class: "controls" }, playBtn, h("button", { class: "small", onclick: () => seek(S.clip.start) }, "⏮ 처음"), loopBtn, timeLbl, h("span", { class: "grow" }),
           h("span", { class: "muted", style: { fontSize: "12px" } }, "타임라인 양쪽 손잡이로 구간을 조절하세요 (단어 단위로 맞춰짐)")),
