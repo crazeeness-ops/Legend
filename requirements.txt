@@ -1,0 +1,4 @@
+anthropic>=0.80
+faster-whisper>=1.0
+numpy>=1.26
+pytest>=8

@@ -1,0 +1,1651 @@
+{
+ "language": "ko",
+ "duration": 144.28,
+ "words": [
+  {
+   "text": "안녕하세요",
+   "start": 0.4,
+   "end": 1.13,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "여러분,",
+   "start": 1.19,
+   "end": 1.79,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "오늘도",
+   "start": 1.85,
+   "end": 2.32,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "돈",
+   "start": 2.38,
+   "end": 2.59,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "이야기",
+   "start": 2.65,
+   "end": 3.12,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "팟캐스트에",
+   "start": 3.18,
+   "end": 3.91,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "오신",
+   "start": 3.97,
+   "end": 4.31,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "걸",
+   "start": 4.37,
+   "end": 4.58,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "환영합니다.",
+   "start": 4.64,
+   "end": 5.5,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "오늘은",
+   "start": 6.11,
+   "end": 6.58,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "직장인",
+   "start": 6.64,
+   "end": 7.11,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "부업",
+   "start": 7.17,
+   "end": 7.51,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "전문가",
+   "start": 7.57,
+   "end": 8.04,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "김대표님을",
+   "start": 8.1,
+   "end": 8.83,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "모셨습니다.",
+   "start": 8.89,
+   "end": 9.75,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "네",
+   "start": 10.36,
+   "end": 10.57,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "안녕하세요,",
+   "start": 10.63,
+   "end": 11.49,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "반갑습니다.",
+   "start": 11.55,
+   "end": 12.41,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "요즘",
+   "start": 13.02,
+   "end": 13.36,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "날씨가",
+   "start": 13.42,
+   "end": 13.89,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "많이",
+   "start": 13.95,
+   "end": 14.29,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "추워졌죠.",
+   "start": 14.35,
+   "end": 15.08,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "그러게요,",
+   "start": 15.69,
+   "end": 16.42,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "오늘",
+   "start": 16.48,
+   "end": 16.82,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "아침에",
+   "start": 16.88,
+   "end": 17.35,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "정말",
+   "start": 17.41,
+   "end": 17.75,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "추웠어요.",
+   "start": 17.81,
+   "end": 18.54,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "자",
+   "start": 19.55,
+   "end": 19.76,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "그럼",
+   "start": 19.82,
+   "end": 20.16,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "본론으로",
+   "start": 20.22,
+   "end": 20.82,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "들어가",
+   "start": 20.88,
+   "end": 21.35,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "볼게요.",
+   "start": 21.41,
+   "end": 22.01,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "대표님,",
+   "start": 22.62,
+   "end": 23.22,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "직장인이",
+   "start": 23.28,
+   "end": 23.88,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "부업으로",
+   "start": 23.94,
+   "end": 24.54,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "월",
+   "start": 24.6,
+   "end": 24.81,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "100만",
+   "start": 24.87,
+   "end": 25.47,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "원",
+   "start": 25.53,
+   "end": 25.74,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "버는",
+   "start": 25.8,
+   "end": 26.14,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "게",
+   "start": 26.2,
+   "end": 26.41,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "진짜",
+   "start": 26.47,
+   "end": 26.81,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "가능한가요?",
+   "start": 26.87,
+   "end": 27.73,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "솔직히",
+   "start": 28.34,
+   "end": 28.81,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "말씀드리면",
+   "start": 28.87,
+   "end": 29.6,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "가능합니다,",
+   "start": 29.66,
+   "end": 30.52,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "그런데",
+   "start": 30.58,
+   "end": 31.05,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "대부분이",
+   "start": 31.11,
+   "end": 31.71,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "처음",
+   "start": 31.77,
+   "end": 32.11,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "3개월",
+   "start": 32.17,
+   "end": 32.64,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "안에",
+   "start": 32.7,
+   "end": 33.04,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "포기해요.",
+   "start": 33.1,
+   "end": 33.83,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "제가",
+   "start": 34.44,
+   "end": 34.78,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "300명",
+   "start": 34.84,
+   "end": 35.44,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "넘게",
+   "start": 35.5,
+   "end": 35.84,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "상담해",
+   "start": 35.9,
+   "end": 36.37,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "보니까",
+   "start": 36.43,
+   "end": 36.9,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "실패하는",
+   "start": 36.96,
+   "end": 37.56,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "이유는",
+   "start": 37.62,
+   "end": 38.09,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "딱",
+   "start": 38.15,
+   "end": 38.36,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "하나였어요.",
+   "start": 38.42,
+   "end": 39.28,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "돈이",
+   "start": 39.89,
+   "end": 40.23,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "되는",
+   "start": 40.29,
+   "end": 40.63,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "일이",
+   "start": 40.69,
+   "end": 41.03,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "아니라",
+   "start": 41.09,
+   "end": 41.56,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "재미있어",
+   "start": 41.62,
+   "end": 42.22,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "보이는",
+   "start": 42.28,
+   "end": 42.75,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "일부터",
+   "start": 42.81,
+   "end": 43.28,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "시작한다는",
+   "start": 43.34,
+   "end": 44.07,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "거예요.",
+   "start": 44.13,
+   "end": 44.73,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "예를",
+   "start": 45.74,
+   "end": 46.08,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "들어서",
+   "start": 46.14,
+   "end": 46.61,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "유튜브를",
+   "start": 46.67,
+   "end": 47.27,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "시작하면",
+   "start": 47.33,
+   "end": 47.93,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "첫",
+   "start": 47.99,
+   "end": 48.2,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "6개월은",
+   "start": 48.26,
+   "end": 48.86,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "수익이",
+   "start": 48.92,
+   "end": 49.39,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "거의",
+   "start": 49.45,
+   "end": 49.79,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "0원입니다.",
+   "start": 49.85,
+   "end": 50.71,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "그래서",
+   "start": 51.32,
+   "end": 51.79,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "저는",
+   "start": 51.85,
+   "end": 52.19,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "무조건",
+   "start": 52.25,
+   "end": 52.72,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "이미",
+   "start": 52.78,
+   "end": 53.12,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "가진",
+   "start": 53.18,
+   "end": 53.52,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "기술로",
+   "start": 53.58,
+   "end": 54.05,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "첫",
+   "start": 54.11,
+   "end": 54.32,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "10만",
+   "start": 54.38,
+   "end": 54.85,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "원을",
+   "start": 54.91,
+   "end": 55.25,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "먼저",
+   "start": 55.31,
+   "end": 55.65,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "벌어",
+   "start": 55.71,
+   "end": 56.05,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "보라고",
+   "start": 56.11,
+   "end": 56.58,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "해요.",
+   "start": 56.64,
+   "end": 57.11,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "아",
+   "start": 57.72,
+   "end": 57.93,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "그게",
+   "start": 57.99,
+   "end": 58.33,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "핵심이네요!",
+   "start": 58.39,
+   "end": 59.25,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "네,",
+   "start": 59.86,
+   "end": 60.2,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "첫",
+   "start": 60.26,
+   "end": 60.47,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "10만",
+   "start": 60.53,
+   "end": 61.0,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "원을",
+   "start": 61.06,
+   "end": 61.4,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "벌면",
+   "start": 61.46,
+   "end": 61.8,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "그다음",
+   "start": 61.86,
+   "end": 62.33,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "100만",
+   "start": 62.39,
+   "end": 62.99,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "원은",
+   "start": 63.05,
+   "end": 63.39,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "생각보다",
+   "start": 63.45,
+   "end": 64.05,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "빨리",
+   "start": 64.11,
+   "end": 64.45,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "옵니다.",
+   "start": 64.51,
+   "end": 65.11,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "음",
+   "start": 65.72,
+   "end": 65.93,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "그렇군요.",
+   "start": 65.99,
+   "end": 66.72,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "잠깐",
+   "start": 67.73,
+   "end": 68.07,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "광고",
+   "start": 68.13,
+   "end": 68.47,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "듣고",
+   "start": 68.53,
+   "end": 68.87,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "오겠습니다.",
+   "start": 68.93,
+   "end": 69.79,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "이",
+   "start": 70.4,
+   "end": 70.61,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "방송은",
+   "start": 70.67,
+   "end": 71.14,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "여러분의",
+   "start": 71.2,
+   "end": 71.8,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "구독과",
+   "start": 71.86,
+   "end": 72.33,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "좋아요로",
+   "start": 72.39,
+   "end": 72.99,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "만들어집니다.",
+   "start": 73.05,
+   "end": 74.04,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "자",
+   "start": 74.65,
+   "end": 74.86,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "다시",
+   "start": 74.92,
+   "end": 75.26,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "돌아왔습니다.",
+   "start": 75.32,
+   "end": 76.31,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "그러면",
+   "start": 76.92,
+   "end": 77.39,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "대표님이",
+   "start": 77.45,
+   "end": 78.05,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "겪은",
+   "start": 78.11,
+   "end": 78.45,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "최악의",
+   "start": 78.51,
+   "end": 78.98,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "실수는",
+   "start": 79.04,
+   "end": 79.51,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "뭐였어요?",
+   "start": 79.57,
+   "end": 80.3,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "아",
+   "start": 80.91,
+   "end": 81.12,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "이건",
+   "start": 81.18,
+   "end": 81.52,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "정말",
+   "start": 81.58,
+   "end": 81.92,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "부끄러운",
+   "start": 81.98,
+   "end": 82.58,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "이야기인데요.",
+   "start": 82.64,
+   "end": 83.63,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "제가",
+   "start": 84.64,
+   "end": 84.98,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "처음에",
+   "start": 85.04,
+   "end": 85.51,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "퇴사하고",
+   "start": 85.57,
+   "end": 86.17,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "모은",
+   "start": 86.23,
+   "end": 86.57,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "돈",
+   "start": 86.63,
+   "end": 86.84,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "2천만",
+   "start": 86.9,
+   "end": 87.37,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "원을",
+   "start": 87.43,
+   "end": 87.77,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "강의",
+   "start": 87.83,
+   "end": 88.17,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "사는",
+   "start": 88.23,
+   "end": 88.57,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "데",
+   "start": 88.63,
+   "end": 88.84,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "다",
+   "start": 88.9,
+   "end": 89.11,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "썼어요.",
+   "start": 89.17,
+   "end": 89.77,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "강의를",
+   "start": 90.38,
+   "end": 90.85,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "열",
+   "start": 90.91,
+   "end": 91.12,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "개",
+   "start": 91.18,
+   "end": 91.39,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "넘게",
+   "start": 91.45,
+   "end": 91.79,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "들었는데",
+   "start": 91.85,
+   "end": 92.45,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "실제로",
+   "start": 92.51,
+   "end": 92.98,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "실행한",
+   "start": 93.04,
+   "end": 93.51,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "건",
+   "start": 93.57,
+   "end": 93.78,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "하나도",
+   "start": 93.84,
+   "end": 94.31,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "없었습니다.",
+   "start": 94.37,
+   "end": 95.23,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "그때",
+   "start": 95.84,
+   "end": 96.18,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "깨달았죠,",
+   "start": 96.24,
+   "end": 96.97,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "배우는",
+   "start": 97.03,
+   "end": 97.5,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "건",
+   "start": 97.56,
+   "end": 97.77,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "일이",
+   "start": 97.83,
+   "end": 98.17,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "아니고",
+   "start": 98.23,
+   "end": 98.7,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "실행만이",
+   "start": 98.76,
+   "end": 99.36,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "돈이",
+   "start": 99.42,
+   "end": 99.76,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "된다는",
+   "start": 99.82,
+   "end": 100.29,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "걸요.",
+   "start": 100.35,
+   "end": 100.82,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "와",
+   "start": 101.43,
+   "end": 101.64,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "2천만",
+   "start": 101.7,
+   "end": 102.17,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "원이면",
+   "start": 102.23,
+   "end": 102.7,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "정말",
+   "start": 102.76,
+   "end": 103.1,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "큰돈인데요!",
+   "start": 103.16,
+   "end": 104.02,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "네,",
+   "start": 104.63,
+   "end": 104.97,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "그래서",
+   "start": 105.03,
+   "end": 105.5,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "지금은",
+   "start": 105.56,
+   "end": 106.03,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "강의",
+   "start": 106.09,
+   "end": 106.43,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "하나",
+   "start": 106.49,
+   "end": 106.83,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "들으면",
+   "start": 106.89,
+   "end": 107.36,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "무조건",
+   "start": 107.42,
+   "end": 107.89,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "일주일",
+   "start": 107.95,
+   "end": 108.42,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "안에",
+   "start": 108.48,
+   "end": 108.82,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "하나는",
+   "start": 108.88,
+   "end": 109.35,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "실행해",
+   "start": 109.41,
+   "end": 109.88,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "보라고",
+   "start": 109.94,
+   "end": 110.41,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "합니다.",
+   "start": 110.47,
+   "end": 111.07,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "그건",
+   "start": 112.08,
+   "end": 112.42,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "그렇고",
+   "start": 112.48,
+   "end": 112.95,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "다음",
+   "start": 113.01,
+   "end": 113.35,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "주",
+   "start": 113.41,
+   "end": 113.62,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "게스트",
+   "start": 113.68,
+   "end": 114.15,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "소개를",
+   "start": 114.21,
+   "end": 114.68,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "잠깐",
+   "start": 114.74,
+   "end": 115.08,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "드릴게요.",
+   "start": 115.14,
+   "end": 115.87,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "다음",
+   "start": 116.48,
+   "end": 116.82,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "주에는",
+   "start": 116.88,
+   "end": 117.35,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "부동산",
+   "start": 117.41,
+   "end": 117.88,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "전문가",
+   "start": 117.94,
+   "end": 118.41,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "분이",
+   "start": 118.47,
+   "end": 118.81,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "나오십니다.",
+   "start": 118.87,
+   "end": 119.73,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "마지막으로",
+   "start": 120.34,
+   "end": 121.07,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "부업을",
+   "start": 121.13,
+   "end": 121.6,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "시작하려는",
+   "start": 121.66,
+   "end": 122.39,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "분들께",
+   "start": 122.45,
+   "end": 122.92,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "한마디",
+   "start": 122.98,
+   "end": 123.45,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "부탁드려요.",
+   "start": 123.51,
+   "end": 124.37,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "완벽하게",
+   "start": 124.98,
+   "end": 125.58,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "준비된",
+   "start": 125.64,
+   "end": 126.11,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "날은",
+   "start": 126.17,
+   "end": 126.51,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "절대",
+   "start": 126.57,
+   "end": 126.91,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "오지",
+   "start": 126.97,
+   "end": 127.31,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "않습니다.",
+   "start": 127.37,
+   "end": 128.1,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "오늘",
+   "start": 128.71,
+   "end": 129.05,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "퇴근하고",
+   "start": 129.11,
+   "end": 129.71,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "딱",
+   "start": 129.77,
+   "end": 129.98,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "30분만,",
+   "start": 130.04,
+   "end": 130.77,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "내가",
+   "start": 130.83,
+   "end": 131.17,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "팔",
+   "start": 131.23,
+   "end": 131.44,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "수",
+   "start": 131.5,
+   "end": 131.71,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "있는",
+   "start": 131.77,
+   "end": 132.11,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "걸",
+   "start": 132.17,
+   "end": 132.38,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "종이에",
+   "start": 132.44,
+   "end": 132.91,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "적어",
+   "start": 132.97,
+   "end": 133.31,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "보세요.",
+   "start": 133.37,
+   "end": 133.97,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "그",
+   "start": 134.98,
+   "end": 135.19,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "30분이",
+   "start": 135.25,
+   "end": 135.85,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "1년",
+   "start": 135.91,
+   "end": 136.25,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "뒤",
+   "start": 136.31,
+   "end": 136.52,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "여러분의",
+   "start": 136.58,
+   "end": 137.18,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "월급을",
+   "start": 137.24,
+   "end": 137.71,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "바꿀",
+   "start": 137.77,
+   "end": 138.11,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "겁니다.",
+   "start": 138.17,
+   "end": 138.77,
+   "speaker": "B",
+   "prob": null
+  },
+  {
+   "text": "오늘",
+   "start": 139.38,
+   "end": 139.72,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "말씀",
+   "start": 139.78,
+   "end": 140.12,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "정말",
+   "start": 140.18,
+   "end": 140.52,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "감사합니다,",
+   "start": 140.58,
+   "end": 141.44,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "다음",
+   "start": 141.5,
+   "end": 141.84,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "주에",
+   "start": 141.9,
+   "end": 142.24,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "또",
+   "start": 142.3,
+   "end": 142.51,
+   "speaker": "A",
+   "prob": null
+  },
+  {
+   "text": "만나요.",
+   "start": 142.57,
+   "end": 143.17,
+   "speaker": "A",
+   "prob": null
+  }
+ ]
+}
