@@ -37,6 +37,7 @@ def split_sentences(
                     end=current[-1].end,
                     text=text,
                     speaker=current[0].speaker,
+                    words=list(current),
                 )
             )
         current.clear()

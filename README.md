@@ -1,7 +1,7 @@
 # Legend — 하이라이트 엔진 프로토타입
 
 긴 영상(팟캐스트·인터뷰·강의)에서 숏츠로 쓸 만한 구간을 찾아 **점수순 클립 후보 JSON**으로 내보내는 엔진입니다.
-MVP 파이프라인의 핵심 단계(전사 → 분석)에 해당합니다. 세로 리프레이밍과 자막 렌더링은 다음 단계에서 구현합니다.
+이어서 **9:16 세로 전환(얼굴 추적)과 애니메이션 자막을 입힌 숏츠 MP4**까지 렌더링합니다.
 
 ## 파이프라인
 
@@ -21,6 +21,41 @@ MVP 파이프라인의 핵심 단계(전사 → 분석)에 해당합니다. 세�
 - "그래서/그리고/근데"처럼 앞 맥락에 의존하는 시작, 미완결 끝은 완결성 점수를 깎습니다.
 - 긴 영상은 20분 단위로 겹치게(90초) 나눠 병렬 호출하고, 겹친 후보는 IoU 기준으로 제거합니다.
 - Claude 호출은 JSON 스키마 구조화 출력을 쓰고, 서버 측 폴백(`fallbacks: "default"`)을 켜 두었습니다. 모델이 요청을 거절하면 자동으로 다른 모델이 이어받습니다.
+
+## 세로 숏츠 렌더링 (`highlight_engine/render/`)
+
+```
+클립 구간 ─▶ 장면 전환 감지 (썸네일 차이, 최근 움직임 대비 적응형 임계값)
+         ─▶ 얼굴 검출 (초당 5프레임, 640px 축소본)
+         ─▶ 장면(shot)마다 레이아웃 자동 선택
+              track : 9:16 창이 주 화자 얼굴을 따라감 (작은 흔들림은 고정, 큰 이동만 부드럽게 추적, 컷에서 즉시 전환)
+              split : 두 사람이 멀리 떨어진 2인 화면 → 위/아래 분할
+              fit   : 얼굴 없음(슬라이드·화면녹화) → 블러 배경 위에 원본 전체
+         ─▶ 프레임 합성(OpenCV) → ffmpeg로 인코딩하면서 ASS 자막을 입힘 + 원본 오디오
+```
+
+- 자막: 단어 단위 카라오케 하이라이트, 키워드 강조색, 페이지 등장 팝 애니메이션, 상단 제목 바. 
+  레이아웃에 따라 위치가 바뀝니다(track 70% 높이 / split 경계선 / fit 영상 바로 아래).
+- 프리셋 5종: `basic`, `bold`, `box`, `emphasis`, `minimal`. 브랜드 폰트·색은 `with_brand()`로 덮어씁니다.
+- 각 숏츠 옆에 `short_XX.json`(레이아웃, 장면별 크롭 키프레임)이 생성됩니다. 편집기에서 크롭 위치를 보여주고 수정하는 데이터입니다.
+- 얼굴 검출 기본값은 OpenCV 내장 Haar(오프라인 동작). 운영에서는 `--yunet face_detection_yunet_2023mar.onnx`(OpenCV model zoo) 사용을 권장합니다.
+- 한글 자막에는 한글 폰트가 필요합니다: 기본 `Noto Sans CJK KR` (`apt install fonts-noto-cjk`), 다른 폰트는 `--fonts-dir`.
+
+```bash
+# 엔진 실행과 동시에 렌더링
+python -m highlight_engine video.mp4 --out clips.json --render-dir shorts/ --preset bold
+
+# 이미 뽑은 클립 JSON으로 렌더링만 (특정 순위만)
+python -m highlight_engine.render clips.json video.mp4 --out-dir shorts/ --ranks 1,2 --preset emphasis --layout auto
+```
+
+데모 영상 만들기(테스트용 합성 영상: 단독 화면·2인 화면·슬라이드가 번갈아 나옴):
+
+```bash
+python examples/make_demo_video.py demo.mp4 145
+python -m highlight_engine examples/sample_podcast.json --audio demo.mp4 --selector heuristic \
+    --length 15-45 --top 3 --out clips.json --render-dir shorts/
+```
 
 ## 설치
 
@@ -80,6 +115,6 @@ Claude 호출은 테스트에서 가짜 클라이언트로 대체하므로 API �
 
 ## 다음 단계
 1. **평가셋 구축**: 실제 영상 30개에 사람이 "좋은 구간" 라벨을 달아 휴리스틱과 Claude, 프롬프트 버전별로 비교
-2. 화자 분리(pyannote) → 두 사람 화면 분할 레이아웃의 근거 데이터
-3. 리프레이밍(얼굴 추적) + 애니메이션 자막 렌더러
+2. 화자 분리(pyannote) + 입 움직임으로 "말하는 사람"을 추적 (현재는 가장 큰 얼굴 기준)
+3. GPU 인코딩(NVENC)과 YuNet 기본화로 처리 속도·검출 품질 개선
 4. 웃음·박수 감지 등 오디오 이벤트 신호 추가

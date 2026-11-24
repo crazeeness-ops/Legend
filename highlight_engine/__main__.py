@@ -39,7 +39,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--save-transcript", help="write the transcript json here (video input only)")
     p.add_argument("--out", help="write result json here (default: stdout)")
     p.add_argument("--export-dir", help="also cut preview mp4 clips into this directory")
+    p.add_argument("--render-dir", help="also render vertical 9:16 shorts with captions into this directory")
     p.add_argument("-v", "--verbose", action="store_true")
+    from .render.__main__ import add_render_args
+
+    add_render_args(p.add_argument_group("render options (with --render-dir)"))
     args = p.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO if args.verbose else logging.WARNING, format="%(levelname)s %(message)s")
@@ -65,10 +69,14 @@ def main(argv: list[str] | None = None) -> int:
         print(text)
 
     media = args.audio if args.source.endswith(".json") else args.source
+    if (args.export_dir or args.render_dir) and not media:
+        print("--export-dir/--render-dir need the media file (use --audio with a transcript)", file=sys.stderr)
+        return 2
+    if args.render_dir:
+        from .render.__main__ import render_all
+
+        render_all(media, result["clips"], args.render_dir, args)
     if args.export_dir:
-        if not media:
-            print("--export-dir needs the media file (use --audio with a transcript)", file=sys.stderr)
-            return 2
         from .export import export_clips
         from .models import Clip
 

@@ -58,6 +58,7 @@ class Sentence:
     gap_after: float = 0.0  # silence after this sentence (s)
     energy_z: float = 0.0  # loudness relative to the whole video (z-score)
     rate_z: float = 0.0  # speaking rate relative to the whole video (z-score)
+    words: list[Word] = field(default_factory=list, repr=False)
 
     @property
     def duration(self) -> float:
@@ -99,6 +100,7 @@ class Clip:
     score_detail: dict[str, float]
     keywords: list[str]
     text: str
+    words: list[dict] = field(default_factory=list)  # [{text,start,end}] absolute seconds, for captions
 
     @property
     def duration(self) -> float:

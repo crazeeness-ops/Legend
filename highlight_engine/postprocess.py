@@ -129,6 +129,7 @@ def finalize(
                 score_detail={**{k: round(v, 1) for k, v in scores.items()}, "signal": round(sig, 1)},
                 keywords=c.keywords,
                 text=" ".join(x.text for x in span),
+                words=[{"text": w.text, "start": w.start, "end": w.end} for x in span for w in x.words],
             )
         )
 
