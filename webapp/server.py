@@ -44,6 +44,16 @@ class WordPatch(BaseModel):
     text: str
 
 
+def clip_signature(clip: dict) -> str:
+    """Hash of everything that changes the rendered video (range, text, style, layout)."""
+    import hashlib
+    import json
+
+    payload = {k: clip.get(k) for k in ("start", "end", "title", "keywords", "edits")}
+    payload["words"] = [(w["text"], w["start"]) for w in clip.get("words", [])]
+    return hashlib.sha1(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode()).hexdigest()[:16]
+
+
 def make_selector(name: str):
     if name == "claude":
         from highlight_engine.llm import ClaudeSelector
@@ -54,7 +64,8 @@ def make_selector(name: str):
     return HeuristicSelector()
 
 
-def create_app(data_dir: str | Path = "data", *, workers: int = 2) -> FastAPI:
+def create_app(data_dir: str | Path = "data", *, workers: int = 2, public_url: str = "http://127.0.0.1:8000",
+               google_client_secret: str | None = None, youtube_http=None) -> FastAPI:
     store = Store(data_dir)
     jobs = Jobs(workers)
     detector = HaarFaceDetector()
@@ -226,35 +237,49 @@ def create_app(data_dir: str | Path = "data", *, workers: int = 2) -> FastAPI:
         plan = clip_plan(pid, clip)
         return {**plan.to_dict(), "clip_start": clip["start"], "clip_end": clip["end"]}
 
+    def render_clip(pid: str, cid: str, progress) -> dict:
+        """Render the clip as it is now; returns the render record saved on the clip."""
+        clip = store.clip_view(pid, store.find_clip(store.get(pid), cid))
+        progress(0.02, "화면 분석 중")
+        plan = clip_plan(pid, clip)
+        ed = clip["edits"]
+        style = with_brand(ed["preset"], **ed.get("style_overrides", {}))
+        name = f"{cid}_{int(time.time() * 1000)}.mp4"
+        out = store.dir(pid) / "renders" / name
+        progress(0.05, "렌더링 중")
+        meta = render_short(
+            str(store.video_path(pid)), clip, str(out), style=style, show_title=ed.get("show_title", True),
+            plan=plan, progress=lambda f: progress(0.05 + 0.93 * f, "렌더링 중"),
+        )
+        record = {"file": name, "status": "done", "rendered_at": time.time(), "start": clip["start"],
+                  "end": clip["end"], "style": asdict(style), "signature": clip_signature(clip),
+                  "timings": meta["timings_sec"]}
+
+        def done(p: dict) -> None:
+            c = store.find_clip(p, cid)
+            old = (c.get("render") or {}).get("file")
+            c["render"] = record
+            if old and old != name:  # keep only the latest render per clip
+                for f in (store.dir(pid) / "renders" / old, (store.dir(pid) / "renders" / old).with_suffix(".json")):
+                    f.unlink(missing_ok=True)
+
+        store.update(pid, done)
+        return record
+
+    def render_is_current(pid: str, clip: dict) -> bool:
+        r = clip.get("render")
+        return bool(r and (store.dir(pid) / "renders" / r["file"]).exists()
+                    and r.get("signature") == clip_signature(store.clip_view(pid, clip)))
+
+    app.state.render_clip, app.state.render_is_current = render_clip, render_is_current
+
     @app.post("/api/projects/{pid}/clips/{cid}/render")
     def render(pid: str, cid: str):
-        project = store.get(pid)
-        clip = store.clip_view(pid, store.find_clip(project, cid))
+        store.find_clip(store.get(pid), cid)
 
         def do_render(*, progress) -> dict:
-            progress(0.02, "화면 분석 중")
-            plan = clip_plan(pid, clip)
-            ed = clip["edits"]
-            style = with_brand(ed["preset"], **ed.get("style_overrides", {}))
-            name = f"{cid}_{int(time.time())}.mp4"
-            out = store.dir(pid) / "renders" / name
-            progress(0.05, "렌더링 중")
-            meta = render_short(
-                str(store.video_path(pid)), clip, str(out), style=style, show_title=ed.get("show_title", True),
-                plan=plan, progress=lambda f: progress(0.05 + 0.93 * f, "렌더링 중"),
-            )
-
-            def done(p: dict) -> None:
-                c = store.find_clip(p, cid)
-                old = (c.get("render") or {}).get("file")
-                c["render"] = {"file": name, "status": "done", "rendered_at": time.time(),
-                               "start": clip["start"], "end": clip["end"], "style": asdict(style)}
-                if old and old != name:  # keep only the latest render per clip
-                    for f in (store.dir(pid) / "renders" / old, (store.dir(pid) / "renders" / old).with_suffix(".json")):
-                        f.unlink(missing_ok=True)
-
-            store.update(pid, done)
-            return {"file": name, "url": f"/api/projects/{pid}/files/{name}", "timings": meta["timings_sec"]}
+            r = render_clip(pid, cid, progress)
+            return {"file": r["file"], "url": f"/api/projects/{pid}/files/{r['file']}", "timings": r["timings"]}
 
         jid = jobs.submit("render", do_render, project=pid, clip=cid)
         return {"job_id": jid}
@@ -306,6 +331,14 @@ def create_app(data_dir: str | Path = "data", *, workers: int = 2) -> FastAPI:
         if not j:
             raise HTTPException(404)
         return j
+
+    # ------------------------------------------------------------------ YouTube publishing
+    from . import publish
+    from .youtube import OAuthConfig, YouTubeAccount
+
+    oauth = OAuthConfig.load(google_client_secret, public_url.rstrip("/") + "/oauth/google/callback")
+    app.state.youtube = YouTubeAccount(data_dir, oauth, http=youtube_http)
+    publish.register(app, app.state.youtube)
 
     # ------------------------------------------------------------------ frontend
     app.mount("/static", StaticFiles(directory=STATIC), name="static")

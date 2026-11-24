@@ -11,6 +11,7 @@ export function h(tag, attrs = {}, ...children) {
       }
     }
     else if (k.startsWith("on")) el.addEventListener(k.slice(2).toLowerCase(), v);
+    else if (k === "value") el.value = v; // property, not attribute (textarea/select need it)
     else if (k in el && typeof v !== "string") el[k] = v;
     else el.setAttribute(k, v === true ? "" : v);
   }

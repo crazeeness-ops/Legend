@@ -1,5 +1,6 @@
 import { h, api, toast, fmt, debounce, clamp } from "./util.js";
 import { Preview } from "./preview.js";
+import { ytChip, publishTab, openBulk, PUBLISH_BADGE } from "./publish.js";
 
 const app = document.getElementById("app");
 let cleanup = () => {};
@@ -101,7 +102,7 @@ async function homeView() {
       } }, "삭제"))))
     : h("div", { class: "empty" }, "아직 프로젝트가 없어요. 왼쪽에서 영상을 올려보세요.");
 
-  app.replaceChildren(topbar(), h("main", { class: "home" },
+  app.replaceChildren(topbar(h("span", { class: "grow" }), ytChip()), h("main", { class: "home" },
     h("section", { class: "card" }, h("h2", {}, "새 영상으로 숏츠 만들기"),
       h("div", { class: "field" }, drop, videoInput),
       h("div", { class: "field" }, h("label", {}, "프로젝트 이름"), nameIn),
@@ -285,12 +286,12 @@ function editorView(project, initialClip) {
   // ---- side panel tabs
   const tabBody = h("div", { class: "tab-body" });
   const tabs = h("div", { class: "tabs" });
-  const TABS = [["trim", "구간·텍스트"], ["style", "자막 스타일"], ["layout", "화면 구성"], ["export", "내보내기"]];
+  const TABS = [["trim", "구간"], ["style", "자막"], ["layout", "화면"], ["export", "내보내기"], ["publish", "게시"]];
   function renderTabs() {
     tabs.replaceChildren(...TABS.map(([id, label]) => h("button", { class: S.tab === id ? "on" : "", onclick: () => { S.tab = id; renderTabs(); renderTab(); } }, label)));
   }
   function renderTab() {
-    const fn = { trim: trimTab, style: styleTab, layout: layoutTab, export: exportTab }[S.tab];
+    const fn = { trim: trimTab, style: styleTab, layout: layoutTab, export: exportTab, publish: () => publishTab(pubCtx) }[S.tab];
     const scroll = tabBody.scrollTop;
     tabBody.replaceChildren(...fn());
     tabBody.scrollTop = scroll;
@@ -463,14 +464,36 @@ function editorView(project, initialClip) {
     } catch (e) { toast(e.message, true); }
   }
 
+  // ---- publishing context (게시 tab)
+  const pubCtx = {
+    pid, cleanupFns: null, publishJob: null,
+    clip: () => S.clip,
+    setPublish: (pub, rerender = true) => { S.clip = { ...S.clip, publish: pub }; updateClipList(); if (rerender && S.tab === "publish") renderTab(); },
+    rerender: () => { if (S.tab === "publish") renderTab(); },
+  };
+
   // ---- clip list
   const clipList = h("nav", { class: "clips" });
+  async function reloadClips() {
+    const p = await api(`/api/projects/${pid}`);
+    project.clips = p.clips;
+    const me = p.clips.find(c => c.id === S.clip.id);
+    if (me) S.clip = { ...S.clip, publish: me.publish, render: me.render };
+    updateClipList(); if (S.tab === "publish") renderTab();
+  }
   function updateClipList() {
     project.clips = project.clips.map(c => c.id === S.clip.id ? { ...c, ...S.clip } : c);
-    clipList.replaceChildren(...project.clips.map(c => h("a", { class: "clip-item" + (c.id === S.clip.id ? " active" : ""), href: `#/p/${pid}/${c.id}` },
+    const badge = c => {
+      const b = c.publish?.status && PUBLISH_BADGE[c.publish.status];
+      if (b) return h("span", { class: "badge " + b[0] }, b[1]);
+      return c.render ? h("span", { class: "badge ok" }, "렌더링됨") : null;
+    };
+    clipList.replaceChildren(
+      h("button", { class: "bulk-btn", onclick: () => openBulk(project, reloadClips) }, "📅 일괄 예약 게시"),
+      ...project.clips.map(c => h("a", { class: "clip-item" + (c.id === S.clip.id ? " active" : ""), href: `#/p/${pid}/${c.id}` },
       h("img", { src: `/api/projects/${pid}/clips/${c.id}/thumb.jpg`, alt: "", loading: "lazy" }),
       h("div", {}, h("div", { class: "t" }, c.title),
-        h("div", { class: "m" }, h("span", { class: "badge score" }, c.score), `${fmt(c.end - c.start, 0)}`, c.render ? h("span", { class: "badge ok" }, "렌더링됨") : null)))));
+        h("div", { class: "m" }, h("span", { class: "badge score" }, c.score), `${fmt(c.end - c.start, 0)}`, badge(c))))));
   }
 
   // ---- per-frame UI sync (playhead, time, loop, current word)
@@ -502,7 +525,7 @@ function editorView(project, initialClip) {
 
   const renderTop = h("button", { class: "primary", onclick: () => { S.tab = "export"; renderTabs(); renderTab(); startRender(); } }, "렌더링");
   app.replaceChildren(
-    topbar(h("span", { class: "crumb grow" }, "/ ", project.name), saveState, renderTop),
+    topbar(h("span", { class: "crumb grow" }, "/ ", project.name), saveState, ytChip(), renderTop),
     h("div", { class: "editor" },
       clipList,
       h("section", { class: "stage" },
@@ -513,6 +536,7 @@ function editorView(project, initialClip) {
       h("aside", { class: "side" }, tabs, tabBody)));
 
   const cleanupFns = [];
+  pubCtx.cleanupFns = cleanupFns;
   cleanup = () => { preview.destroy(); cancelAnimationFrame(raf); document.removeEventListener("keydown", onKey); video.pause(); cleanupFns.forEach(f => f()); };
   updateClipList(); renderTabs(); renderTimeline(); renderTab();
   loadWords(); loadPlan.flush();

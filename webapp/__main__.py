@@ -20,6 +20,8 @@ def main(argv: list[str] | None = None) -> int:
     s = sub.add_parser("serve", help="start the editor web server")
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--port", type=int, default=8000)
+    s.add_argument("--google-client-secret", help="OAuth client JSON from Google Cloud (YouTube upload)")
+    s.add_argument("--public-url", help="URL users open, for the OAuth redirect (default http://HOST:PORT)")
 
     i = sub.add_parser("import", help="create a project from a local video (and optional transcript)")
     i.add_argument("video")
@@ -34,7 +36,11 @@ def main(argv: list[str] | None = None) -> int:
 
     from .server import create_app
 
-    app = create_app(args.data)
+    if args.cmd == "serve":
+        app = create_app(args.data, google_client_secret=args.google_client_secret,
+                         public_url=args.public_url or f"http://{args.host}:{args.port}")
+    else:
+        app = create_app(args.data)
     if args.cmd == "serve":
         import uvicorn
 

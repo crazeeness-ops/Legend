@@ -172,3 +172,30 @@ label { color: var(--muted); font-size: 12px; display: block; margin-bottom: 4px
   .side { border-left: none; border-top: 1px solid var(--line); }
   .home { grid-template-columns: 1fr; }
 }
+
+/* ---------------- publishing */
+.yt-chip { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.yt-chip img, .channel img { width: 22px; height: 22px; border-radius: 50%; }
+.channel img { width: 36px; height: 36px; }
+.channel { padding: 10px; border: 1px solid var(--line); border-radius: 10px; }
+.pub-status { padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); }
+.pub-status a { color: #7cc4ff; word-break: break-all; }
+.seg { display: flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+.seg label { flex: 1; margin: 0; padding: 8px 6px; text-align: center; cursor: pointer; color: var(--muted); font-size: 13px; border-right: 1px solid var(--line); }
+.seg label:last-child { border-right: none; }
+.seg label.on { background: #ff4d6d22; color: var(--text); font-weight: 700; }
+.seg input { display: none; }
+label.check { color: var(--text); font-size: 13px; gap: 8px; cursor: pointer; }
+textarea { resize: vertical; line-height: 1.5; }
+input[type=datetime-local] { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; width: 100%; color-scheme: dark; margin-top: 6px; }
+input[type=datetime-local]:disabled { opacity: .4; }
+.bulk-btn { width: 100%; margin-bottom: 10px; }
+.modal-bg { position: fixed; inset: 0; background: #000a; display: flex; align-items: center; justify-content: center; z-index: 50; padding: 16px; }
+.modal { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px 20px; width: min(560px, 100%); max-height: 90vh; overflow-y: auto; }
+.modal h2 { font-size: 17px; margin: 0; }
+.bulk-list { display: grid; gap: 6px; max-height: 260px; overflow-y: auto; padding: 4px 0; }
+.bulk-list label { padding: 8px; border: 1px solid var(--line); border-radius: 8px; margin: 0; }
+.results { padding-left: 18px; line-height: 1.8; font-size: 13px; }
+.modal .primary { margin-top: 12px; }
+.seg.disabled { opacity: .55; }
+.seg.disabled label { cursor: not-allowed; }

@@ -111,6 +111,33 @@ python -m webapp import video.mp4 --transcript t.json --selector heuristic   # �
   얼굴 추적 장면은 미리보기를 좌우로 드래그해 화면 위치 조정
 - **내보내기**: 렌더링 진행률 → 결과 재생·다운로드 (클립당 최신 결과만 보관)
 
+### YouTube Shorts 자동 업로드
+
+- **채널 연결**: 상단 "YouTube 연결" → Google 로그인(OAuth 2.0, `youtube.upload` + `youtube.readonly`).
+  토큰은 `data/youtube/account.json`(권한 600)에 저장되고 만료 시 자동 갱신, 해제 시 Google에서도 철회
+- **게시 탭**: Claude가 제목·설명·해시태그(#Shorts 포함)·검색 태그 작성(키가 없으면 기본 문구) → 수정 →
+  공개/일부 공개/비공개, **예약 게시**(YouTube `publishAt` 사용: 서버가 꺼져 있어도 정한 시간에 공개), 아동용 여부
+- **자동 렌더링**: 편집 내용이 마지막 렌더링과 다르면(구간·자막·스타일·화면 해시 비교) 다시 렌더링 후 업로드
+- **이어 올리기**: 8MB 단위 resumable upload, 5xx·연결 끊김·응답 유실 시 서버에 받은 위치를 물어 이어서 전송, 토큰 만료 시 갱신 후 계속
+- **일괄 예약 게시**: 클립 여러 개를 첫 공개 시간 + 간격(6시간~일주일)으로 한 번에 예약. 실패한 클립이 있어도 나머지는 계속
+- 오류는 한국어로 안내(할당량 초과, 권한 없음, 예약 시간 오류 등)
+
+설정 (한 번만):
+1. Google Cloud 콘솔 → 프로젝트 생성 → **YouTube Data API v3** 사용 설정
+2. OAuth 동의 화면(외부, 테스트 사용자에 본인 계정 추가)
+3. 사용자 인증 정보 → OAuth 클라이언트 ID(**웹 애플리케이션**), 리디렉션 URI `http://127.0.0.1:8000/oauth/google/callback` → JSON 다운로드
+4. `python -m webapp serve --google-client-secret client_secret.json` (또는 `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET`)
+
+알아둘 제한:
+- **API 감사(audit)를 통과하지 않은 Google 프로젝트로 올린 영상은 비공개로 고정**됩니다. 공개·예약 게시를 서비스로 쓰려면 YouTube API 서비스 감사를 신청해야 합니다.
+- 기본 할당량 10,000 unit/일, 업로드 1회 약 1,600 unit → 하루 약 6개. 서비스 규모에 맞게 할당량 증설 신청 필요
+- 세로 3분 이하 영상은 YouTube가 자동으로 Shorts로 분류합니다.
+- 연결된 채널로 누구나 게시할 수 있으므로 편집기는 **로컬(127.0.0.1)에서만** 실행하세요(로그인 기능 전까지).
+
+오프라인 검증: `tests/fake_google.py`는 OAuth와 YouTube 업로드 API를 흉내 내는 가짜 서버입니다(오류 주입 가능).
+`python tests/fake_google.py --port 9999` 후 `LEGEND_GOOGLE_BASE=http://127.0.0.1:9999 GOOGLE_CLIENT_ID=x GOOGLE_CLIENT_SECRET=y python -m webapp serve`로
+실제 Google 없이 전체 흐름을 눌러볼 수 있습니다.
+
 구조: FastAPI(`webapp/server.py`) + 파일 기반 저장소(`webapp/store.py`, `data/projects/<id>/`) + 프로세스 내 작업 큐(`webapp/jobs.py`) +
 빌드 없는 ES 모듈 프론트엔드(`webapp/static/`). 운영 단계에서는 설계 문서대로 Postgres·S3·Redis 큐·GPU 워커, Next.js로 옮기면 되도록
 API를 분리해 두었습니다. 인증·결제는 아직 없으므로 **로컬/내부망에서만** 실행하세요.
