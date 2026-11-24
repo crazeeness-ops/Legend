@@ -166,10 +166,14 @@ def caption_events(ass, layer="1"):
     return [l for l in ass.splitlines() if l.startswith(f"Dialogue: {layer},") and ",Caption," in l]
 
 
+def any_caption_events(ass):
+    return [l for l in ass.splitlines() if l.startswith("Dialogue:") and ",Caption," in l]
+
+
 @pytest.mark.parametrize("name", list(PRESETS))
 def test_every_preset_builds(name):
     ass = build_ass(SAMPLE, clip_start=0, duration=2, style=name, title="t", keywords=["100만"])
-    assert caption_events(ass) and "Style: Caption," in ass
+    assert any_caption_events(ass) and "Style: Caption," in ass
 
 
 def test_box_mode_draws_box_only_behind_spoken_word():
@@ -270,3 +274,19 @@ def test_signature_long_page_uses_two_lines():
     texts = [l for l in build_ass(long, clip_start=0, duration=2, style=st).splitlines() if l.startswith("Dialogue: 3,")]
     ys = {l.split("\\pos(540,")[1].split(")")[0] for l in texts if "\\pos(540," in l}
     assert len(ys) == 2  # two stacked lines
+
+
+def test_sticker_pops_spoken_word_and_keeps_line_still():
+    ass = build_ass(SAMPLE, clip_start=0, duration=2, style="legend_sticker", keywords=["100만"], title="스티커 제목")
+    lines = ass.splitlines()
+    shadow = [l for l in lines if l.startswith("Dialogue: 4,")]
+    sticker = [l for l in lines if l.startswith("Dialogue: 5,")]
+    word = [l for l in lines if l.startswith("Dialogue: 6,")]
+    line = [l for l in lines if l.startswith("Dialogue: 3,")]
+    assert len(shadow) == len(sticker) == len(word) == len(line) == 4
+    assert all("\\t(0,90,\\fscx114" in x and "\\frz" in x for x in sticker + word)  # overshoot pop + tilt
+    assert word[1].endswith("100만") and "\\c&H141414&" in word[1]  # dark ink on the white sticker
+    assert "{\\alpha&HFF&}100만" in line[1]  # the gap in the line keeps every other word in place
+    assert {l.split("\\pos(")[1].split(")")[0] for l in line} == {line[0].split("\\pos(")[1].split(")")[0]}
+    assert "\\c&H8A5CFF&" in line[0]  # keyword pink while not spoken
+    assert sum(1 for l in lines if l.startswith(("Dialogue: 7,", "Dialogue: 8,", "Dialogue: 9,"))) == 3  # title card

@@ -10,6 +10,7 @@ const POSITIONS = { top: 560, middle: 960, bottom: 1560 };
 // libass sizes fonts by line height (ascender + descender ≈ 1.45em for Noto Sans CJK); CSS sizes by em.
 const ASS_EM = 1 / 1.45;
 const TILTS = [-2.0, 1.4, -1.0, 2.2, -1.6, 0.8]; // same sequence as signature.py
+const STICKER_TILTS = [-3.5, 2.8, -2.2, 3.6, -3.0, 2.0];
 
 export function paginate(words, maxChars, maxWords, maxGap = 0.7) {
   const pages = [];
@@ -162,7 +163,14 @@ export class Preview {
 
     const layer = this.capLayer;
     layer.replaceChildren();
-    if (this.showTitle && this.clip.title && st.mode === "signature") {
+    if (this.showTitle && this.clip.title && st.mode === "sticker") {
+      layer.append(h("div", { class: "cap-title", style: { top: `${220 * scale}px`, padding: `0 ${140 * scale}px` } },
+        h("span", { class: "stk-title", style: {
+          fontSize: `${st.title_size * scale * ASS_EM}px`, color: "#" + st.title_color, "--accent": "#" + st.title_box_color,
+          padding: `${18 * scale}px ${32 * scale}px`, borderRadius: `${26 * scale}px`,
+          fontFamily: `"${st.font}", "Noto Sans KR", sans-serif`,
+        } }, this.clip.title)));
+    } else if (this.showTitle && this.clip.title && st.mode === "signature") {
       layer.append(h("div", { class: "cap-title", style: { top: `${220 * scale}px`, padding: `0 ${130 * scale}px` } },
         h("span", { class: "sig-title", style: {
           fontSize: `${st.title_size * scale * ASS_EM}px`, color: "#" + st.title_color,
@@ -196,6 +204,7 @@ export class Preview {
         fontFamily: `"${st.font}", "Noto Sans KR", sans-serif`, fontSize: `${st.size * scale * ASS_EM}px`,
         fontWeight: st.bold ? 700 : 400, color: "#" + st.color,
         textShadow: shadows.join(",") || "none",
+        wordSpacing: st.mode === "sticker" ? "0.23em" : "normal", // the renderer uses a double space here
       },
     });
     const inner = h("span", {
@@ -210,7 +219,7 @@ export class Preview {
       let text = st.uppercase ? w.text.toUpperCase() : w.text;
       if (st.mode === "reveal" && i > cur) css.visibility = "hidden";
       if (isCur && st.highlight && (st.mode === "karaoke" || st.mode === "reveal")) css.color = "#" + st.highlight;
-      else if (st.keyword_color && isKeyword(w.text, kws) && st.mode !== "sweep" && !(st.mode === "signature" && isCur)) css.color = "#" + st.keyword_color;
+      else if (st.keyword_color && isKeyword(w.text, kws) && st.mode !== "sweep" && !((st.mode === "signature" || st.mode === "sticker") && isCur)) css.color = "#" + st.keyword_color;
       if (st.mode === "sweep" && st.highlight) {
         if (i < cur) css.color = "#" + st.highlight;
         else if (isCur) {
@@ -225,6 +234,11 @@ export class Preview {
         Object.assign(css, { background: "#" + st.word_box_color, padding: `0 ${pad}px`, margin: `0 ${-pad * 0.4}px` });
       }
       const attrs = { class: "w", style: css };
+      if (isCur && st.mode === "sticker") {
+        attrs.class = "w stk";
+        Object.assign(css, { "--fill": "#" + st.word_box_color, "--accent": "#" + (st.highlight || "FF3D6E"),
+          "--tilt": `${STICKER_TILTS[(pi * 3 + i) % STICKER_TILTS.length]}deg` });
+      }
       if (isCur && st.mode === "signature") {
         attrs.class = "w mk";
         css["--mk"] = "#" + st.word_box_color;

@@ -376,7 +376,7 @@ function editorView(project, initialClip) {
             await patchEdits({ preset: p.id, style_overrides: {} });
           },
         }, h("img", { src: `/api/projects/${pid}/style-preview/${p.id}.jpg`, loading: "lazy", alt: "" }),
-          h("div", { class: "n" }, p.label, p.mode === "signature" ? h("span", { class: "sig" }, "SIGNATURE") : null),
+          h("div", { class: "n" }, p.label, ["signature", "sticker"].includes(p.mode) ? h("span", { class: "sig" }, "SIGNATURE") : null),
           h("div", { class: "d" }, p.description.replace(/^시그니처 · /, "")))))),
       h("div", { class: "section" }, h("h3", {}, "세부 조정", Object.keys(ov).length ? h("button", { class: "small ghost", onclick: () => {
           S.clip.edits = { ...S.clip.edits, style_overrides: {} }; preview.setStyle(style(), S.clip.edits.show_title); saveOverrides({}); renderTab();

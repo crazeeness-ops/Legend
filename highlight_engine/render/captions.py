@@ -12,6 +12,7 @@ JSON style file. Animation modes:
 - static:  plain page of words, no per-word effect
 - signature: Legend's own look — a hand-drawn highlighter wipes in behind the
              spoken word (see ``signature.py``)
+- sticker:   Legend's second signature — the spoken word pops onto a tilted white sticker
 """
 
 from __future__ import annotations
@@ -24,7 +25,7 @@ from pathlib import Path
 OUT_W, OUT_H = 1080, 1920
 STRIP_TRAILING = ".,。、"
 BREAK_AFTER = (".", "?", "!", "。", "？", "！", ",")
-MODES = ("signature", "karaoke", "box", "reveal", "single", "sweep", "static")
+MODES = ("signature", "sticker", "karaoke", "box", "reveal", "single", "sweep", "static")
 POSITIONS = {"top": 560, "middle": OUT_H // 2, "bottom": 1560}  # "auto" follows the video layout
 
 
@@ -79,6 +80,11 @@ PRESETS: dict[str, CaptionStyle] = {
                            mode="signature", size=86, color="FFFFFF", highlight=None, word_box_color="FF3D6E",
                            keyword_color="FFC94D", outline=2.5, outline_color="101010", shadow=3, blur=1.2,
                            max_chars=13, max_words=4, pop_in=False, title_size=56, title_box_color="FF3D6E"),
+    "legend_sticker": CaptionStyle(label="레전드 스티커", description="시그니처 · 말하는 단어가 기울어진 흰 스티커로 톡 튀어나옴",
+                                   mode="sticker", size=86, color="FFFFFF", highlight="FF3D6E", word_box_color="FFFFFF",
+                                   keyword_color="FF5C8A", outline=6, outline_color="000000", shadow=0, blur=0,
+                                   max_chars=13, max_words=4, pop_in=False, title_size=56, title_color="141414",
+                                   title_box_color="FF3D6E"),
     "basic": CaptionStyle(label="기본", description="흰 글씨 + 검은 외곽선, 말하는 단어는 노란색"),
     "bold": CaptionStyle(label="굵은 노랑", description="크고 굵은 노란 글씨, 말하는 단어는 흰색으로 커짐",
                          size=96, color="FFE600", highlight="FFFFFF", highlight_scale=112, outline=8,
@@ -283,7 +289,7 @@ def build_ass(
         if page_end <= page_start:
             continue
 
-        if st.mode == "signature":
+        if st.mode in ("signature", "sticker"):
             break  # laid out separately below (needs text measurement across the whole page)
 
         if st.mode in ("static", "single"):
@@ -310,14 +316,16 @@ def build_ass(
             if st.mode == "box":
                 emit(0, s, e, "WordBox", pre + " ".join(box_markup(x, j == i) for j, x in enumerate(page)))
 
-    if st.mode == "signature":
-        from .signature import signature_events, signature_title
+    if st.mode in ("signature", "sticker"):
+        from .signature import signature_events, signature_title, sticker_events, sticker_title
 
-        events = signature_events(pages, st, duration=duration, ypos=ypos, keywords=keywords,
-                                  is_keyword=_is_keyword, text_of=text_of, ass_time=ass_time)
+        build, build_title = ((signature_events, signature_title) if st.mode == "signature"
+                              else (sticker_events, sticker_title))
+        events = build(pages, st, duration=duration, ypos=ypos, keywords=keywords,
+                       is_keyword=_is_keyword, text_of=text_of, ass_time=ass_time)
         if title:
-            events = signature_title(title, st, duration=duration, y_top=title_y - 10, ass_time=ass_time,
-                                     escape=escape) + events
+            events = build_title(title, st, duration=duration, y_top=title_y - 10, ass_time=ass_time,
+                                 escape=escape) + events
         title = None
 
     if title:

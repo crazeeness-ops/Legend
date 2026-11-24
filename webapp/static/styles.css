@@ -102,6 +102,14 @@ label { color: var(--muted); font-size: 12px; display: block; margin-bottom: 4px
 @keyframes mk-wipe { from { clip-path: inset(-20% 100% -20% -10%); } to { clip-path: inset(-20% -10% -20% -10%); } }
 .cap-line.rise { animation: rise .12s ease-out; }
 @keyframes rise { from { transform: translateY(calc(-50% + 1.2vh)); opacity: .2; } to { transform: translateY(-50%); opacity: 1; } }
+/* signature 2: Legend sticker */
+.cap-line span.w.stk {
+  background: var(--fill); color: #141414 !important; text-shadow: none !important; padding: 0 .22em; margin: 0 -.22em;
+  border-radius: .36em; box-shadow: .09em .09em 0 var(--accent); rotate: var(--tilt); line-height: 1.28;
+  animation: stk-pop .17s ease-out both;
+}
+@keyframes stk-pop { 0% { scale: .55; } 53% { scale: 1.14; } 100% { scale: 1; } }
+.stk-title { display: inline-block; background: #fff; font-weight: 700; line-height: 1.35; rotate: -2deg; box-shadow: .16em .16em 0 var(--accent); text-wrap: balance; }
 .sig-title { display: inline-block; background: rgba(20,20,20,.78); font-weight: 700; line-height: 1.35; text-wrap: balance; }
 .preset .sig { display: inline-block; margin-left: 6px; font-size: 10px; padding: 1px 6px; border-radius: 99px; background: var(--accent); color: #fff; vertical-align: 1px; }
 .shot-tag { position: absolute; top: 10px; left: 10px; font-size: 11px; background: #000a; padding: 3px 7px; border-radius: 6px; pointer-events: none; }
