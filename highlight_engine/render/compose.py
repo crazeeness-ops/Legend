@@ -6,6 +6,7 @@ import json
 import subprocess
 import tempfile
 import time
+from collections.abc import Callable
 from dataclasses import asdict
 from pathlib import Path
 
@@ -15,7 +16,7 @@ import numpy as np
 from .captions import PRESETS, CaptionStyle, build_ass
 from .detect import FaceDetector, HaarFaceDetector
 from .media import probe, read_frames
-from .reframe import OUT_H, OUT_W, ReframePlan, Rect, analyze
+from .reframe import OUT_H, OUT_W, ReframePlan, Rect, analyze, apply_overrides
 
 
 def _crop_resize(frame: np.ndarray, r: Rect, w: int, h: int) -> np.ndarray:
@@ -71,17 +72,24 @@ def render_short(
     crf: int = 20,
     x264_preset: str = "veryfast",
     fonts_dir: str | None = None,
+    plan: ReframePlan | None = None,
+    shot_overrides: list[dict] | None = None,
+    progress: Callable[[float], None] | None = None,
 ) -> dict:
     """Render one clip (a dict from the engine's output JSON) to a vertical MP4.
 
     Writes ``<out>.json`` next to the video with the reframe plan (layout, crop
-    keyframes) so an editor UI can show and adjust it.
+    keyframes) so an editor UI can show and adjust it. Pass ``plan`` to reuse an
+    analysis, and ``shot_overrides`` to apply manual per-shot layout/crop edits.
     """
     t0 = time.perf_counter()
     info = probe(video)
     start = float(clip["start"])
     duration = float(clip["end"]) - start
-    plan = analyze(video, start, duration, info, detector or HaarFaceDetector(), layout=layout)
+    if plan is None:
+        plan = analyze(video, start, duration, info, detector or HaarFaceDetector(), layout=layout)
+    if shot_overrides:
+        apply_overrides(plan, shot_overrides)
     t_analyze = time.perf_counter() - t0
 
     ass = build_ass(
@@ -109,6 +117,8 @@ def render_short(
             for frame in read_frames(video, start, duration, info.width, info.height):
                 proc.stdin.write(compose_frame(frame, plan, frames / info.fps).tobytes())
                 frames += 1
+                if progress and frames % 15 == 0:
+                    progress(min(0.99, frames / max(1.0, duration * info.fps)))
         finally:
             proc.stdin.close()
             code = proc.wait()

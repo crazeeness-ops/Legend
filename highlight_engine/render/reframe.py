@@ -264,3 +264,29 @@ def analyze(
         times.append(i / sample_fps)
         samples.append(faces)
     return build_plan(times, samples, shots, src_w, src_h, layout=layout)
+
+
+def apply_overrides(plan: ReframePlan, overrides: list[dict], tolerance: float = 0.35) -> ReframePlan:
+    """Apply manual edits from the editor, in place.
+
+    Each override is ``{"start": shot_start_sec, "layout": "track|split|fit"?, "cx": crop_centre_px?}``
+    and is matched to the shot whose start is within ``tolerance`` seconds (shot
+    boundaries can shift slightly when a clip is re-analysed).
+    """
+    for o in overrides:
+        shot = min(plan.shots, key=lambda s: abs(s.start - float(o.get("start", 0))), default=None)
+        if shot is None or abs(shot.start - float(o.get("start", 0))) > tolerance:
+            continue
+        layout = o.get("layout")
+        if layout == "split" and shot.split is None:
+            layout = None  # no two people detected in this shot; keep the automatic choice
+        if layout in ("track", "fit", "split"):
+            shot.layout = layout
+        if o.get("cx") is not None:
+            half = plan.crop_w / 2
+            cx = float(min(plan.src_w - half, max(half, float(o["cx"]))))
+            shot.layout = "track" if layout in (None, "track") else shot.layout
+            shot.times, shot.centers = [shot.start, shot.end], [cx, cx]
+        elif shot.layout == "track" and not shot.times:
+            shot.times, shot.centers = [shot.start, shot.end], [plan.src_w / 2] * 2
+    return plan

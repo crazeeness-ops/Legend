@@ -88,6 +88,28 @@ python -m highlight_engine examples/sample_podcast.json --audio demo.mp4 --selec
     --length 15-45 --top 3 --out clips.json --render-dir shorts/
 ```
 
+## 웹 편집기 (`webapp/`)
+
+```bash
+python -m webapp serve                      # http://127.0.0.1:8000
+python -m webapp import video.mp4 --transcript t.json --selector heuristic   # 로컬 영상으로 프로젝트 만들기
+```
+
+- **업로드 → 자동 분석**: 영상(+선택: 자막 json)을 올리면 백그라운드에서 전사·하이라이트 분석, 진행률 표시
+- **클립 목록**: 점수순 썸네일, 렌더링 여부 표시
+- **9:16 실시간 미리보기**: 서버와 같은 규칙으로 캔버스에 세로 화면을 그리고 자막을 겹쳐 보여줌
+  (libass 글꼴 크기·줄바꿈 방식을 보정해 최종 렌더와 거의 같게 보임)
+- **구간·텍스트**: 타임라인 손잡이로 시작·끝 조절(단어 경계에 자동으로 맞춤), 단어 클릭→이동/시작점/끝점/오타 수정,
+  제목·강조 키워드 수정, "AI 추천 구간으로" 되돌리기. 단축키 Space 재생, I 시작점, O 끝점
+- **자막 스타일**: 11개 프리셋(이 영상 장면으로 만든 썸네일) + 글꼴·크기·위치·색상 세부 조정
+- **화면 구성**: 전체 레이아웃(자동/얼굴 추적/2인 분할/전체 화면), 장면별 레이아웃 지정,
+  얼굴 추적 장면은 미리보기를 좌우로 드래그해 화면 위치 조정
+- **내보내기**: 렌더링 진행률 → 결과 재생·다운로드 (클립당 최신 결과만 보관)
+
+구조: FastAPI(`webapp/server.py`) + 파일 기반 저장소(`webapp/store.py`, `data/projects/<id>/`) + 프로세스 내 작업 큐(`webapp/jobs.py`) +
+빌드 없는 ES 모듈 프론트엔드(`webapp/static/`). 운영 단계에서는 설계 문서대로 Postgres·S3·Redis 큐·GPU 워커, Next.js로 옮기면 되도록
+API를 분리해 두었습니다. 인증·결제는 아직 없으므로 **로컬/내부망에서만** 실행하세요.
+
 ## 설치
 
 ```bash
