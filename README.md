@@ -34,9 +34,7 @@
          ─▶ 프레임 합성(OpenCV) → ffmpeg로 인코딩하면서 ASS 자막을 입힘 + 원본 오디오
 ```
 
-- 자막: 단어 단위 카라오케 하이라이트, 키워드 강조색, 페이지 등장 팝 애니메이션, 상단 제목 바. 
-  레이아웃에 따라 위치가 바뀝니다(track 70% 높이 / split 경계선 / fit 영상 바로 아래).
-- 프리셋 5종: `basic`, `bold`, `box`, `emphasis`, `minimal`. 브랜드 폰트·색은 `with_brand()`로 덮어씁니다.
+- 자막 위치는 기본적으로 레이아웃을 따라갑니다(track 70% 높이 / split 경계선 / fit 영상 바로 아래). 스타일에서 top/middle/bottom으로 고정할 수도 있습니다.
 - 각 숏츠 옆에 `short_XX.json`(레이아웃, 장면별 크롭 키프레임)이 생성됩니다. 편집기에서 크롭 위치를 보여주고 수정하는 데이터입니다.
 - 얼굴 검출 기본값은 OpenCV 내장 Haar(오프라인 동작). 운영에서는 `--yunet face_detection_yunet_2023mar.onnx`(OpenCV model zoo) 사용을 권장합니다.
 - 한글 자막에는 한글 폰트가 필요합니다: 기본 `Noto Sans CJK KR` (`apt install fonts-noto-cjk`), 다른 폰트는 `--fonts-dir`.
@@ -48,6 +46,39 @@ python -m highlight_engine video.mp4 --out clips.json --render-dir shorts/ --pre
 # 이미 뽑은 클립 JSON으로 렌더링만 (특정 순위만)
 python -m highlight_engine.render clips.json video.mp4 --out-dir shorts/ --ranks 1,2 --preset emphasis --layout auto
 ```
+
+### 자막 스타일 고르기
+
+| 프리셋 | 이름 | 효과 |
+|---|---|---|
+| `basic` | 기본 | 흰 글씨 + 검은 외곽선, 말하는 단어는 노란색 |
+| `bold` | 굵은 노랑 | 크고 굵은 노란 글씨, 말하는 단어는 흰색으로 커짐 |
+| `box` | 반투명 박스 | 반투명 검은 배경 박스, 말하는 단어는 민트색 |
+| `highlight_box` | 단어 박스 | 말하는 단어 뒤에 색 박스가 따라다님 |
+| `one_word` | 한 단어씩 | 한 단어씩 화면에 크게 팝 |
+| `reveal` | 타자기 | 말하는 대로 단어가 하나씩 나타남 |
+| `karaoke` | 노래방 | 말하는 동안 왼쪽부터 색이 채워짐 |
+| `emphasis` | 키워드 강조 | 핵심 키워드는 핑크, 말하는 단어는 초록색으로 팝 |
+| `neon` | 네온 | 하늘색 네온 글로우 |
+| `news` | 방송 자막 | 화면 아래 반투명 바, 차분한 스타일 |
+| `minimal` | 미니멀 | 작은 흰 글씨, 효과 없음 |
+
+```bash
+python -m highlight_engine.render --list-presets            # 목록 (--json: 웹 UI 스타일 선택기용 카탈로그)
+python -m highlight_engine.render --preview styles.png --preview-video video.mp4   # 모든 스타일 미리보기 갤러리
+
+# 프리셋 + 개별 수정 (폰트/크기/색/위치)
+python -m highlight_engine.render clips.json video.mp4 --preset neon \
+    --font "Pretendard" --caption-size 90 --highlight-color FF4FA3 --caption-position bottom
+
+# 내 브랜드 스타일을 파일로 저장해 재사용
+echo '{"base": "highlight_box", "font": "Pretendard", "word_box_color": "6C5CE7", "size": 88}' > brand.json
+python -m highlight_engine.render clips.json video.mp4 --style-file brand.json
+```
+
+스타일 파일에는 `CaptionStyle`의 모든 필드를 쓸 수 있습니다(`mode`, `color`, `highlight`, `highlight_scale`,
+`keyword_color`, `outline`, `blur`, `box`, `max_chars`, `max_words`, `position`, `uppercase`, `title_*` …).
+잘못된 필드명이나 색상 값은 오류로 알려줍니다. 렌더링된 `short_XX.json`에 사용한 스타일 전체가 기록됩니다.
 
 데모 영상 만들기(테스트용 합성 영상: 단독 화면·2인 화면·슬라이드가 번갈아 나옴):
 

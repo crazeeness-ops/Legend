@@ -153,3 +153,76 @@ def test_render_short_end_to_end(tmp_path):
         assert len(faces), f"no face at {t}s"
         x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
         assert abs((x + w / 2) - 270) < 110, f"face off-centre at {t}s"
+
+
+# ---------- caption style selection ----------
+
+from highlight_engine.render.captions import PRESETS, CaptionStyle, load_style_file, preset_catalog  # noqa: E402
+
+SAMPLE = words(("월", 0.0, 0.3), ("100만", 0.3, 0.8), ("원", 0.8, 1.0), ("진짜", 1.0, 1.4))
+
+
+def caption_events(ass, layer="1"):
+    return [l for l in ass.splitlines() if l.startswith(f"Dialogue: {layer},") and ",Caption," in l]
+
+
+@pytest.mark.parametrize("name", list(PRESETS))
+def test_every_preset_builds(name):
+    ass = build_ass(SAMPLE, clip_start=0, duration=2, style=name, title="t", keywords=["100만"])
+    assert caption_events(ass) and "Style: Caption," in ass
+
+
+def test_box_mode_draws_box_only_behind_spoken_word():
+    ass = build_ass(SAMPLE, clip_start=0, duration=2, style="highlight_box")
+    boxes = [l for l in ass.splitlines() if ",WordBox," in l and l.startswith("Dialogue: 0")]
+    assert len(boxes) == 4  # one box layer per spoken word, under the text layer
+    second = boxes[1].split(",,", 1)[1]
+    assert second.count("\\3a&H00&") == 1 and "\\3a&H00&\\4a&H00&}100만" in second
+
+
+def test_reveal_hides_future_words():
+    ev = caption_events(build_ass(SAMPLE, clip_start=0, duration=2, style="reveal"))
+    assert ev[0].count("\\alpha&HFF&") == 3 and "\\alpha&HFF&" not in ev[-1]
+
+
+def test_single_mode_one_word_per_event_and_sweep_uses_kf():
+    single = caption_events(build_ass(SAMPLE, clip_start=0, duration=2, style="one_word"))
+    assert len(single) == 4 and all(l.rsplit("}", 1)[1].count(" ") == 0 for l in single)
+    sweep = caption_events(build_ass(SAMPLE, clip_start=0, duration=2, style="karaoke"))
+    assert len(sweep) == 1 and "{\\kf30}월" in sweep[0] and "{\\kf50}100만" in sweep[0]
+
+
+def test_position_override_and_glow():
+    st = with_brand("neon", position="top")
+    ev = caption_events(build_ass(SAMPLE, clip_start=0, duration=2, style=st, caption_y=1344))
+    assert all("\\pos(540,560)" in l and "\\blur5" in l for l in ev)
+
+
+def test_style_validation_and_style_file(tmp_path):
+    with pytest.raises(ValueError):
+        CaptionStyle(mode="wiggle")
+    with pytest.raises(ValueError):
+        with_brand("basic", color="yellow")
+    with pytest.raises(ValueError):
+        with_brand("basic", colour="FFFFFF")  # typo in a style file must not pass silently
+    f = tmp_path / "brand.json"
+    f.write_text(json.dumps({"base": "bold", "font": "Pretendard", "highlight": "FF4FA3", "position": "bottom"}))
+    st = load_style_file(f)
+    assert (st.font, st.highlight, st.position, st.size) == ("Pretendard", "FF4FA3", "bottom", PRESETS["bold"].size)
+
+
+def test_cli_list_presets_json_and_preview(tmp_path):
+    out = subprocess.run([sys.executable, "-m", "highlight_engine.render", "--list-presets", "--json"],
+                         cwd=ROOT, capture_output=True, text=True, check=True).stdout
+    catalog = json.loads(out)
+    assert [c["id"] for c in catalog] == list(PRESETS) and catalog[0]["label"]
+    assert preset_catalog()[0]["id"] == "basic"
+    if shutil.which("ffmpeg"):
+        png = tmp_path / "g.png"
+        subprocess.run([sys.executable, "-m", "highlight_engine.render", "--preview", str(png),
+                        "--font", "Noto Sans CJK KR", "--highlight-color", "FF4FA3"],
+                       cwd=ROOT, capture_output=True, check=True)
+        import cv2
+
+        img = cv2.imread(str(png))
+        assert img.shape[1] == 360 * 4 and img.shape[0] > 640 * 3  # 12 tiles incl. "custom"

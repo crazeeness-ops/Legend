@@ -6,12 +6,13 @@ import json
 import subprocess
 import tempfile
 import time
+from dataclasses import asdict
 from pathlib import Path
 
 import cv2
 import numpy as np
 
-from .captions import CaptionStyle, build_ass
+from .captions import PRESETS, CaptionStyle, build_ass
 from .detect import FaceDetector, HaarFaceDetector
 from .media import probe, read_frames
 from .reframe import OUT_H, OUT_W, ReframePlan, Rect, analyze
@@ -114,8 +115,10 @@ def render_short(
         if code != 0:
             raise RuntimeError(f"ffmpeg failed with exit code {code}")
 
+    st = PRESETS[style] if isinstance(style, str) else style
     meta = {
         "clip_rank": clip.get("rank"),
+        "caption_style": asdict(st),
         "title": clip.get("title"),
         "output": out.name,
         "frames": frames,
