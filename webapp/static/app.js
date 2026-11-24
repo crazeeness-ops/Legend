@@ -1,7 +1,8 @@
 import { h, api, toast, fmt, debounce, clamp, upload, modal } from "./util.js";
 import { Preview } from "./preview.js";
 import { ytChip, publishTab, openBulk, PUBLISH_BADGE } from "./publish.js";
-import { channelView, marketView, campaignView } from "./market.js";
+import { channelView, marketView, campaignView, listingView } from "./market.js";
+import { sellTab } from "./sell.js";
 
 const app = document.getElementById("app");
 let cleanup = () => {};
@@ -27,7 +28,8 @@ async function refreshMe() {
 }
 
 function topbar(...right) {
-  const section = location.hash.startsWith("#/channel") ? "channel" : location.hash.startsWith("#/market") ? "market" : "home";
+  const section = location.hash.startsWith("#/channel") ? "channel"
+    : (location.hash.startsWith("#/market") || location.hash.startsWith("#/shop")) ? "market" : "home";
   const nav = [["home", "#/", "내 프로젝트"], ["channel", "#/channel", "내 채널"], ["market", "#/market", "클리핑 마켓"]];
   const u = ME?.usage;
   return h("header", { class: "topbar" },
@@ -100,7 +102,8 @@ async function route() {
     if (parts[0] === "p" && parts[1]) await projectView(parts[1], parts[2]);
     else if (parts[0] === "channel") await channelView(app, topbar);
     else if (parts[0] === "market" && parts[1]) await campaignView(app, topbar, parts[1]);
-    else if (parts[0] === "market") await marketView(app, topbar, query || "open");
+    else if (parts[0] === "market") await marketView(app, topbar, query || "shop");
+    else if (parts[0] === "shop" && parts[1]) await listingView(app, topbar, parts[1]);
     else await homeView();
   } catch (e) {
     app.replaceChildren(topbar(), h("div", { class: "center-msg" }, h("h2", {}, "문제가 발생했어요"), h("p", { class: "muted" }, e.message),
@@ -363,12 +366,12 @@ function editorView(project, initialClip) {
   // ---- side panel tabs
   const tabBody = h("div", { class: "tab-body" });
   const tabs = h("div", { class: "tabs" });
-  const TABS = [["trim", "구간"], ["style", "자막"], ["layout", "화면"], ["export", "내보내기"], ["publish", "게시"]];
+  const TABS = [["trim", "구간"], ["style", "자막"], ["layout", "화면"], ["export", "내보내기"], ["publish", "게시"], ["sell", "판매"]];
   function renderTabs() {
     tabs.replaceChildren(...TABS.map(([id, label]) => h("button", { class: S.tab === id ? "on" : "", onclick: () => { S.tab = id; renderTabs(); renderTab(); } }, label)));
   }
   function renderTab() {
-    const fn = { trim: trimTab, style: styleTab, layout: layoutTab, export: exportTab, publish: () => publishTab(pubCtx) }[S.tab];
+    const fn = { trim: trimTab, style: styleTab, layout: layoutTab, export: exportTab, publish: () => publishTab(pubCtx), sell: () => sellTab(pubCtx) }[S.tab];
     const scroll = tabBody.scrollTop;
     tabBody.replaceChildren(...fn());
     tabBody.scrollTop = scroll;
@@ -546,7 +549,7 @@ function editorView(project, initialClip) {
     pid, cleanupFns: null, publishJob: null,
     clip: () => S.clip,
     setPublish: (pub, rerender = true) => { S.clip = { ...S.clip, publish: pub }; updateClipList(); if (rerender && S.tab === "publish") renderTab(); },
-    rerender: () => { if (S.tab === "publish") renderTab(); },
+    rerender: () => { if (S.tab === "publish" || S.tab === "sell") renderTab(); },
   };
 
   // ---- clip list

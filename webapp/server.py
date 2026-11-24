@@ -446,7 +446,7 @@ def create_app(data_dir: str | Path = "data", *, workers: int = 2, public_url: s
 
     def _frame(pid: str, at: float, out: Path, width: int) -> Path:
         if not out.exists():
-            subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", f"{at:.2f}", "-i", str(store.video_path(pid)),
+            subprocess.run(["ffmpeg", "-nostdin", "-v", "error", "-y", "-ss", f"{at:.2f}", "-i", str(store.video_path(pid)),
                             "-frames:v", "1", "-vf", f"scale={width}:-2", "-q:v", "4", str(out)], check=True)
         return out
 
@@ -486,7 +486,7 @@ def create_app(data_dir: str | Path = "data", *, workers: int = 2, public_url: s
         return j
 
     # ------------------------------------------------------------------ YouTube publishing
-    from . import campaigns, channel, publish
+    from . import campaigns, channel, publish, sales
     from .youtube import AccountRegistry, OAuthConfig
 
     oauth = OAuthConfig.load(google_client_secret, public_url.rstrip("/") + "/oauth/google/callback")
@@ -494,6 +494,7 @@ def create_app(data_dir: str | Path = "data", *, workers: int = 2, public_url: s
     publish.register(app, app.state.youtube)
     channel.register(app, app.state.youtube)
     campaigns.register(app, app.state.youtube)
+    sales.register(app, app.state.youtube)
 
     # ------------------------------------------------------------------ frontend
     app.mount("/static", StaticFiles(directory=STATIC), name="static")

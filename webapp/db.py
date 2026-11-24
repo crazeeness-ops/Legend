@@ -43,6 +43,32 @@ CREATE TABLE IF NOT EXISTS submissions (
 CREATE INDEX IF NOT EXISTS idx_usage_user ON usage(user_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_sub_campaign ON submissions(campaign_id);
 CREATE INDEX IF NOT EXISTS idx_sub_clipper ON submissions(clipper_id);
+CREATE TABLE IF NOT EXISTS sellers (
+  user_id TEXT PRIMARY KEY REFERENCES users(id), legal_name TEXT NOT NULL, email TEXT NOT NULL,
+  business_no TEXT NOT NULL DEFAULT '', terms_version TEXT NOT NULL, agreed_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS listings (
+  id TEXT PRIMARY KEY, seller_id TEXT NOT NULL REFERENCES users(id), project_id TEXT NOT NULL, clip_id TEXT NOT NULL,
+  title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', credit TEXT NOT NULL,
+  source_video_id TEXT NOT NULL, source_title TEXT NOT NULL, channel_title TEXT NOT NULL,
+  duration REAL NOT NULL, score INTEGER NOT NULL DEFAULT 0, price INTEGER NOT NULL,
+  license_type TEXT NOT NULL, license_days INTEGER NOT NULL, max_sales INTEGER NOT NULL, sold INTEGER NOT NULL DEFAULT 0,
+  deadline REAL NOT NULL, status TEXT NOT NULL DEFAULT 'on_sale', master_file TEXT NOT NULL, preview_file TEXT NOT NULL,
+  created_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS orders (
+  id TEXT PRIMARY KEY, listing_id TEXT NOT NULL REFERENCES listings(id), buyer_id TEXT NOT NULL REFERENCES users(id),
+  seller_id TEXT NOT NULL, amount INTEGER NOT NULL, fee INTEGER NOT NULL, seller_amount INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending', provider TEXT NOT NULL, payment_key TEXT,
+  license_code TEXT, license_until REAL, paid_at REAL, downloaded_at REAL, published_url TEXT, refunded_at REAL,
+  created_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS reports (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, listing_id TEXT NOT NULL, reporter_id TEXT NOT NULL, reason TEXT NOT NULL,
+  created_at REAL NOT NULL, status TEXT NOT NULL DEFAULT 'open'
+);
+CREATE INDEX IF NOT EXISTS idx_orders_buyer ON orders(buyer_id);
+CREATE INDEX IF NOT EXISTS idx_orders_seller ON orders(seller_id);
 """
 
 

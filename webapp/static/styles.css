@@ -30,9 +30,10 @@ button.ghost { background: transparent; }
 button.small { padding: 4px 8px; font-size: 12px; }
 button.danger { color: var(--danger); }
 
-input[type=text], input[type=number], select, textarea {
+input[type=text], input[type=number], input[type=email], input[type=password], input[type=date], select, textarea {
   background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; width: 100%;
 }
+input[type=date] { color-scheme: dark; }
 input:focus, select:focus, textarea:focus { outline: 2px solid #ff4d6d55; border-color: var(--accent); }
 input[type=color] { width: 36px; height: 28px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; }
 input[type=range] { width: 100%; accent-color: var(--accent); }
@@ -265,3 +266,22 @@ input[type=datetime-local]:disabled { opacity: .4; }
 .plan.on { border-color: var(--accent); }
 .plan .price { font-size: 16px; font-weight: 700; }
 @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } .camp-head { flex-direction: column; } .camp-head .thumb { width: 100%; } .mainnav a { padding: 6px; } }
+
+/* ---------------- clip shop */
+.shop-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; text-decoration: none; display: grid; grid-template-columns: 120px 1fr; }
+.shop-card:hover { border-color: #3b4252; }
+.vthumb { position: relative; aspect-ratio: 9 / 16; background: #000; }
+.vthumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
+.vthumb .dur, .vthumb .rank { position: absolute; bottom: 6px; right: 6px; background: #000c; font-size: 11px; padding: 2px 6px; border-radius: 4px; }
+.vthumb .rank { left: 6px; right: auto; top: 6px; bottom: auto; background: var(--accent); font-weight: 700; }
+.listing { display: grid; grid-template-columns: 320px 1fr; gap: 28px; align-items: start; }
+.listing-video video { width: 100%; aspect-ratio: 9 / 16; background: #000; border-radius: 14px; display: block; }
+.listing .rules ul { margin: 6px 0 0; padding-left: 18px; line-height: 1.7; }
+.listing .primary { margin-top: 14px; padding: 12px; font-size: 15px; }
+.seller-info { margin-top: 14px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; display: grid; gap: 4px; }
+.legal { color: var(--muted); font-size: 11.5px; margin-top: 18px; line-height: 1.6; }
+.sec-title { font-size: 16px; margin: 22px 0 10px; }
+.table td.actions { white-space: nowrap; }
+.table td.actions button { margin-left: 4px; }
+.tabs button { font-size: 13px; padding: 12px 2px; }
+@media (max-width: 900px) { .listing { grid-template-columns: 1fr; } }

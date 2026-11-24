@@ -246,3 +246,95 @@ def test_oauth_on_wrong_host_or_without_session(env):
     anon = TestClient(env.app)
     r = anon.get("/oauth/google/callback?code=x&state=y")
     assert r.status_code == 401 and "로그인" in r.text and "text/html" in r.headers["content-type"]
+
+
+# ---------------------------------------------------------------- clip sales (licences)
+
+from webapp.sales import suggest_price  # noqa: E402
+
+
+def test_suggest_price_grows_with_reach_and_quality():
+    assert suggest_price(1_000_000, 70, 30)["price"] > suggest_price(1_000, 70, 30)["price"]
+    assert suggest_price(50_000, 90, 30)["price"] > suggest_price(50_000, 40, 30)["price"]
+    p = suggest_price(0, 0, 10)
+    assert 3000 <= p["price"] <= 200_000 and p["exclusive_price"] == p["price"] * 5
+
+
+def test_clip_sales_end_to_end(env):
+    seller = user(env, "seller@x.kr")
+    connect(env, seller, "creator")
+    r = upload(seller, env, youtube_video_id="LONG1")
+    wait(env, r.json()["job_id"])
+    pid = r.json()["id"]
+    plain = upload(seller, env)  # a plain upload can't be sold (ownership not verified)
+    wait(env, plain.json()["job_id"])
+
+    deadline = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+    form = {"title": "직장인 부업의 진실", "price": 12000, "license_type": "nonexclusive", "license_days": 90,
+            "deadline": deadline, "max_sales": 2, "seller": {"legal_name": "부업왕 김대표", "email": "biz@x.kr"}, "agree": True}
+    info = seller.get(f"/api/projects/{pid}/clips/c1/listing").json()
+    assert info["eligible"] and info["listing"] is None and info["suggestion"]["price"] >= 3000
+    assert seller.post(f"/api/projects/{plain.json()['id']}/clips/c1/listing", json=form).status_code == 400
+    assert seller.post(f"/api/projects/{pid}/clips/c1/listing", json={**form, "agree": False}).status_code == 400
+    assert seller.post(f"/api/projects/{pid}/clips/c1/listing", json={**form, "price": 10}).status_code == 400
+    assert seller.post(f"/api/projects/{pid}/clips/c1/listing", json={**form, "deadline": "2020-01-01T00:00:00+00:00"}).status_code == 400
+    job = wait(env, seller.post(f"/api/projects/{pid}/clips/c1/listing", json=form).json()["job_id"])
+    lid = job["result"]["listing_id"]
+    assert seller.post(f"/api/projects/{pid}/clips/c1/listing", json=form).status_code == 409  # already on sale
+
+    # preview is small and watermarked; master stays frozen even if the seller edits the clip later
+    d = env.app.state.store.root / "sales" / lid
+    assert (d / "preview.mp4").stat().st_size < (d / "master.mp4").stat().st_size
+    assert probe(str(d / "preview.mp4")).width == 540 and probe(str(d / "master.mp4")).width == 1080
+
+    buyer, buyer2, buyer3 = user(env, "buyer@x.kr"), user(env, "buyer2@x.kr"), user(env, "buyer3@x.kr")
+    shop = buyer.get("/api/listings").json()
+    item = next(x for x in shop if x["id"] == lid)
+    assert item["seller"]["legal_name"] == "부업왕 김대표" and item["remaining"] == 2 and "master_file" not in item
+    assert buyer.get(item["preview_url"]).status_code == 200
+    assert seller.post(f"/api/listings/{lid}/orders").status_code == 400  # can't buy own clip
+
+    o = buyer.post(f"/api/listings/{lid}/orders").json()
+    assert o["amount"] == 12000
+    assert buyer2.post(f"/api/orders/{o['order_id']}/confirm").status_code == 404  # someone else's order
+    paid = buyer.post(f"/api/orders/{o['order_id']}/confirm").json()
+    assert paid["status"] == "paid" and paid["license_code"].startswith("LGD-") and paid["fee"] == 2400
+    assert paid["license_valid"] and paid["refundable"]
+    lic = buyer.get(f"/api/orders/{o['order_id']}/license")
+    assert lic.status_code == 200 and paid["license_code"] in lic.text and "출처 표기 의무" in lic.text and "통신판매중개자" in lic.text
+    assert seller.get(f"/api/orders/{o['order_id']}/license").status_code == 200  # seller keeps a copy
+    assert buyer2.get(f"/api/orders/{o['order_id']}/license").status_code == 404
+    assert buyer2.get(f"/api/orders/{o['order_id']}/download").status_code == 404
+
+    # refund before download is fine; the slot returns to sale
+    assert buyer.post(f"/api/orders/{o['order_id']}/refund").json()["status"] == "refunded"
+    assert seller.get(f"/api/listings/{lid}").json()["sold"] == 0
+    assert buyer.get(f"/api/orders/{o['order_id']}/download").status_code == 403
+
+    # two more buyers fill the 2 slots; a third can't pay
+    o2 = buyer2.post(f"/api/listings/{lid}/orders").json()
+    o3 = buyer3.post(f"/api/listings/{lid}/orders").json()
+    buyer2.post(f"/api/orders/{o2['order_id']}/confirm")
+    o_late = buyer.post(f"/api/listings/{lid}/orders").json()
+    buyer3.post(f"/api/orders/{o3['order_id']}/confirm")
+    assert buyer.post(f"/api/orders/{o_late['order_id']}/confirm").status_code == 409  # sold out meanwhile
+    assert seller.get(f"/api/listings/{lid}").json()["status"] == "sold_out"
+    assert all(x["id"] != lid for x in buyer.get("/api/listings").json())
+
+    # download locks the refund; publishing to the buyer's channel inserts credit + licence number
+    dl = buyer2.get(f"/api/orders/{o2['order_id']}/download")
+    assert dl.status_code == 200 and dl.headers["content-type"] == "video/mp4"
+    assert buyer2.post(f"/api/orders/{o2['order_id']}/refund").status_code == 400
+    assert buyer3.post(f"/api/orders/{o3['order_id']}/publish", json={"title": "산 클립"}).status_code == 400  # not connected
+    connect(env, buyer3, "clipper")
+    job = wait(env, buyer3.post(f"/api/orders/{o3['order_id']}/publish", json={"title": "산 클립"}).json()["job_id"])
+    vid = job["result"]["url"].rsplit("/", 1)[1]
+    desc = env.fake.videos[vid]["snippet"]["description"]
+    assert item["credit"] in desc and "LGD-" in desc and env.fake.videos[vid]["owner"] == "clipper"
+    assert buyer3.post(f"/api/orders/{o3['order_id']}/refund").status_code == 400  # published → no refund
+
+    sold = seller.get("/api/orders?scope=sold").json()
+    assert sold["totals"] == {"gross": 24000, "fee": 4800, "net": 19200}
+    assert buyer2.get("/api/orders").json()["totals"]["spent"] == 12000
+    assert buyer.post(f"/api/listings/{lid}/report", json={"reason": "출연자 동의 없음"}).json()["ok"]
+    assert buyer.patch(f"/api/listings/{lid}", json={"status": "closed"}).status_code == 404  # only the seller

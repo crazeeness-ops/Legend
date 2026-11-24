@@ -90,16 +90,18 @@ export async function channelView(app, topbar) {
 
 function clipFromVideo(v) {
   const file = fileField("원본 영상 파일", "video/*", "YouTube는 API로 원본 파일을 내려받을 수 없어요. YouTube 스튜디오 → 콘텐츠 → 영상 옵션(⋮) → 다운로드로 받은 파일을 올려 주세요. 길이가 같은지 확인해요.");
+  const tr = fileField("자막 파일 (선택, .json)", ".json,application/json");
   const opts = analysisOptions();
   const bar = h("div"), progress = h("div", { class: "progress", style: { display: "none", marginTop: "10px" } }, bar);
   const go = h("button", { class: "primary", style: { width: "100%" } }, "클립 만들기");
   const close = modal(`클립 만들기 · ${v.title}`, h("div", {},
     h("p", { class: "hint" }, "이 영상의 시청 유지율을 하이라이트 점수에 반영해, 실제 시청자가 오래 본 구간을 우선 추천해요."),
-    file.el, opts.el, go, progress));
+    file.el, tr.el, opts.el, go, progress));
   go.onclick = async () => {
     if (!file.input.files[0]) return toast("원본 파일을 선택하세요", true);
     const f = new FormData();
     f.append("video", file.input.files[0]);
+    if (tr.input.files[0]) f.append("transcript", tr.input.files[0]);
     f.append("name", v.title);
     f.append("youtube_video_id", v.id);
     for (const [k, val] of Object.entries(opts.values())) f.append(k, val);
@@ -169,15 +171,38 @@ function campaignCard(c) {
         c.open ? h("span", { class: "badge warn" }, dday(c.deadline)) : h("span", { class: "badge" }, "마감"))));
 }
 
-export async function marketView(app, topbar, tab = "open") {
-  const tabs = [["open", "참여할 캠페인"], ["mine", "내 캠페인"], ["earnings", "내 수익"]];
+const LEGAL_NOTICE = "Legend Clips는 통신판매중개자로서 거래 당사자가 아니며, 판매 클립의 권리와 이용 조건에 대한 책임은 판매자에게 있습니다.";
+const DAYS_LABEL = { 30: "30일", 90: "90일", 365: "1년", 0: "기간 제한 없음" };
+
+function shopCard(l) {
+  const vid = h("video", { src: l.preview_url, muted: true, loop: true, playsInline: true, preload: "metadata" });
+  return h("a", { class: "shop-card", href: `#/shop/${l.id}`, onmouseenter: () => vid.play().catch(() => {}), onmouseleave: () => vid.pause() },
+    h("div", { class: "vthumb" }, vid, h("span", { class: "dur" }, `${Math.round(l.duration)}초`),
+      l.license_type === "exclusive" ? h("span", { class: "rank" }, "독점") : null),
+    h("div", { class: "vc-body" },
+      h("div", { class: "vc-title" }, l.title),
+      h("div", { class: "muted", style: { fontSize: "12px" } }, l.channel_title),
+      h("div", { class: "row" }, h("span", { class: "camp-reward grow" }, won(l.price)),
+        l.open ? h("span", { class: "badge warn" }, dday(l.deadline)) : h("span", { class: "badge" }, "판매 종료")),
+      h("div", { class: "vc-stats" }, `${l.license_type === "exclusive" ? "1명 한정" : `남은 수량 ${l.remaining}`} · 라이선스 ${DAYS_LABEL[l.license_days]}`)));
+}
+
+export async function marketView(app, topbar, tab = "shop") {
+  const tabs = [["shop", "클립 구매"], ["open", "클리핑 캠페인"], ["mine", "내 캠페인"], ["earnings", "캠페인 수익"], ["orders", "구매·판매 내역"]];
   const body = h("div", {});
   app.replaceChildren(topbar(), h("main", { class: "page" },
     h("div", { class: "page-head" }, h("div", { class: "grow" }, h("h1", {}, "클리핑 마켓"),
-      h("p", { class: "muted" }, "크리에이터가 허락한 영상으로 숏츠를 만들고, 조회수만큼 보상을 받아요."))),
-    h("div", { class: "subtabs" }, tabs.map(([id, l]) => h("a", { class: tab === id ? "on" : "", href: `#/market${id === "open" ? "" : "?" + id}` }, l))),
+      h("p", { class: "muted" }, "크리에이터가 직접 파는 클립을 사거나, 허락한 영상으로 숏츠를 만들어 조회수만큼 보상을 받아요."))),
+    h("div", { class: "subtabs" }, tabs.map(([id, l]) => h("a", { class: tab === id ? "on" : "", href: `#/market${id === "shop" ? "" : "?" + id}` }, l))),
     body));
-  if (tab === "open") {
+  if (tab === "shop") {
+    const list = await api("/api/listings");
+    body.append(h("p", { class: "hint" }, "크리에이터가 직접 판매하는 클립이에요. 사면 출처를 표기하고 정해진 기간 동안 내 채널에 올릴 수 있어요. 마우스를 올리면 미리보기가 재생돼요."),
+      list.length ? h("div", { class: "video-grid" }, list.map(shopCard)) : h("div", { class: "empty" }, "지금 판매 중인 클립이 없어요."),
+      h("p", { class: "legal" }, LEGAL_NOTICE));
+  } else if (tab === "orders") {
+    await ordersTab(body);
+  } else if (tab === "open") {
     const list = await api("/api/campaigns");
     body.append(list.length ? h("div", { class: "video-grid" }, list.map(campaignCard))
       : h("div", { class: "empty" }, "지금 열린 캠페인이 없어요."));
@@ -263,4 +288,141 @@ export async function campaignView(app, topbar, cid) {
       opts.el, go),
     h("section", {}, h("h2", { style: { fontSize: "16px" } }, "내 제출물"),
       c.submissions.length ? subTable(c.submissions.map(s => ({ ...s, clipper_name: "나" }))) : h("div", { class: "empty" }, "아직 없어요."))));
+}
+
+
+// ------------------------------------------------------------------ clip shop: detail, checkout, orders
+export async function listingView(app, topbar, lid) {
+  const l = await api(`/api/listings/${lid}`);
+  const body = h("main", { class: "page" });
+  app.replaceChildren(topbar(h("span", { class: "crumb grow" }, "/ 클립 구매 / ", l.title)), body);
+  const terms = [
+    "이용 범위: 내가 운영하는 채널의 숏폼(YouTube Shorts, Instagram Reels, TikTok) 게시",
+    `출처 표기 의무: “${l.credit}”`,
+    "허용: 자막 수정, 길이 줄이기, 화면 비율 조정 · 금지: 재판매, 다른 사람에게 넘기기, 광고 소재 사용",
+    l.license_days ? `기간: 구매일부터 ${DAYS_LABEL[l.license_days]} (끝나면 게시물 비공개 또는 삭제)` : "기간: 제한 없음",
+    `환불: 결제 후 ${l.refund_days}일 이내, 다운로드·게시 전에만 가능 (디지털 상품 특성상 사용 후에는 환불이 제한돼요. 구매 전 미리보기를 확인하세요)`,
+  ];
+  const buy = h("button", { class: "primary", style: { width: "100%" }, disabled: !l.open || l.is_seller },
+    l.is_seller ? "내가 판매하는 클립" : l.open ? `${won(l.price)} 구매하기` : "판매가 끝났어요");
+  buy.onclick = () => checkout(l);
+  body.append(h("div", { class: "listing" },
+    h("div", { class: "listing-video" }, h("video", { src: l.preview_url, controls: true, playsInline: true }),
+      h("p", { class: "hint" }, "워터마크가 있는 저화질 미리보기예요. 구매하면 원본 화질(1080×1920)로 받아요.")),
+    h("div", {},
+      h("h1", { style: { fontSize: "20px", margin: "0 0 6px" } }, l.title),
+      h("p", { class: "muted" }, l.channel_title, " · ", h("a", { href: l.source_url, target: "_blank", rel: "noopener" }, "원본 영상"),
+        ` · ${Math.round(l.duration)}초`),
+      l.description ? h("p", {}, l.description) : null,
+      h("div", { class: "stat-row" },
+        h("div", { class: "stat" }, h("div", { class: "muted" }, "가격"), h("b", {}, won(l.price))),
+        h("div", { class: "stat" }, h("div", { class: "muted" }, "라이선스"), h("b", {}, l.license_type === "exclusive" ? "독점" : "비독점")),
+        h("div", { class: "stat" }, h("div", { class: "muted" }, "판매 마감"), h("b", {}, l.open ? dday(l.deadline) : "종료")),
+        l.license_type === "exclusive" ? null : h("div", { class: "stat" }, h("div", { class: "muted" }, "남은 수량"), h("b", {}, l.remaining))),
+      h("div", { class: "rules" }, h("b", {}, "이용 조건"), h("ul", {}, terms.map(t => h("li", {}, t)))),
+      l.my_orders.length ? h("p", { class: "hint" }, "이미 구매한 클립이에요. ", h("a", { href: "#/market?orders" }, "구매 내역 보기")) : null,
+      buy,
+      h("div", { class: "seller-info" }, h("b", {}, "판매자 정보"),
+        h("div", {}, `${l.seller.legal_name || "-"} · ${l.seller.email || "-"}`, l.seller.business_no ? ` · 사업자 ${l.seller.business_no}` : " · 개인 판매자")),
+      h("button", { class: "small ghost", style: { marginTop: "8px" }, onclick: () => reportListing(l) }, "🚩 권리 침해 신고"),
+      h("p", { class: "legal" }, LEGAL_NOTICE))));
+}
+
+function checkout(l) {
+  const agree = h("input", { type: "checkbox" });
+  const pay = h("button", { class: "primary", style: { width: "100%" } }, `${won(l.price)} 결제하기 (테스트 모드)`);
+  const close = modal("결제", h("div", {},
+    h("table", { class: "table" }, h("tbody", {},
+      h("tr", {}, h("td", {}, "상품"), h("td", {}, l.title)),
+      h("tr", {}, h("td", {}, "라이선스"), h("td", {}, `${l.license_type === "exclusive" ? "독점" : "비독점"} · ${DAYS_LABEL[l.license_days]}`)),
+      h("tr", {}, h("td", {}, "결제 금액"), h("td", {}, h("b", {}, won(l.price)))))),
+    h("label", { class: "row check", style: { margin: "12px 0" } }, agree,
+      h("span", {}, "이용 조건(출처 표기, 기간, 재판매 금지)과 환불 규정(다운로드·게시 후 환불 불가)을 확인했어요.")),
+    pay,
+    h("p", { class: "hint" }, "지금은 실제 돈이 오가지 않는 테스트 결제예요. 실제 결제는 결제사(PG) 연동 후 열려요.")));
+  pay.onclick = async () => {
+    if (!agree.checked) return toast("이용 조건과 환불 규정을 확인해 주세요", true);
+    pay.disabled = true;
+    try {
+      const o = await api(`/api/listings/${l.id}/orders`, { method: "POST" });
+      await api(`/api/orders/${o.order_id}/confirm`, { method: "POST", body: {} });
+      close(); toast("구매가 완료됐어요"); location.hash = "#/market?orders";
+    } catch (e) { toast(e.message, true); pay.disabled = false; }
+  };
+}
+
+function reportListing(l) {
+  const reason = h("textarea", { rows: 4, placeholder: "예: 제가 저작권자인 영상이에요 / 출연자 동의 없이 판매되고 있어요" });
+  const send = h("button", { class: "primary", style: { width: "100%", marginTop: "10px" } }, "신고하기");
+  const close = modal("권리 침해 신고", h("div", {}, h("p", { class: "hint" }, "확인 후 판매를 중지하고 판매자에게 알려요."), reason, send));
+  send.onclick = async () => {
+    try { const r = await api(`/api/listings/${l.id}/report`, { method: "POST", body: { reason: reason.value } }); toast(r.message); close(); }
+    catch (e) { toast(e.message, true); }
+  };
+}
+
+async function ordersTab(body) {
+  const [bought, sold] = await Promise.all([api("/api/orders?scope=bought"), api("/api/orders?scope=sold")]);
+  const status = o => o.status === "refunded" ? h("span", { class: "badge" }, "환불됨")
+    : o.license_valid ? h("span", { class: "badge ok" }, "이용 가능") : h("span", { class: "badge err" }, "기간 만료");
+  const until = o => (o.license_until ? new Date(o.license_until * 1000).toLocaleDateString("ko-KR") + "까지" : "기간 제한 없음");
+  body.append(
+    h("h2", { class: "sec-title" }, "산 클립", h("span", { class: "muted" }, ` 총 ${won(bought.totals.spent)}`)),
+    bought.orders.length ? h("table", { class: "table" },
+      h("thead", {}, h("tr", {}, h("th", {}, "클립"), h("th", {}, "라이선스"), h("th", {}, "상태"), h("th", { class: "r" }, "금액"), h("th", {}))),
+      h("tbody", {}, bought.orders.map(o => h("tr", {},
+        h("td", {}, o.listing.title, o.published_url ? h("div", {}, h("a", { href: o.published_url, target: "_blank", rel: "noopener" }, "게시됨 ↗")) : null),
+        h("td", {}, h("div", {}, o.license_code), h("div", { class: "muted", style: { fontSize: "11px" } }, until(o))),
+        h("td", {}, status(o)),
+        h("td", { class: "r" }, won(o.amount)),
+        h("td", { class: "r actions" },
+          o.license_valid ? [
+            h("a", { href: `/api/orders/${o.id}/download` }, h("button", { class: "small" }, "⬇ 받기")),
+            h("button", { class: "small", onclick: () => publishBought(o) }, "▶ 내 채널에 올리기")] : null,
+          h("a", { href: `/api/orders/${o.id}/license`, target: "_blank" }, h("button", { class: "small ghost" }, "이용 허락서")),
+          o.refundable ? h("button", { class: "small ghost", onclick: async () => {
+            if (!confirm("환불할까요? 라이선스가 사라져요.")) return;
+            try { await api(`/api/orders/${o.id}/refund`, { method: "POST" }); toast("환불했어요"); location.reload(); } catch (e) { toast(e.message, true); }
+          } }, "환불") : null))))) : h("div", { class: "empty" }, "아직 산 클립이 없어요."),
+    h("h2", { class: "sec-title" }, "판 클립"),
+    h("div", { class: "stat-row" },
+      h("div", { class: "stat" }, h("div", { class: "muted" }, "판매 금액"), h("b", {}, won(sold.totals.gross))),
+      h("div", { class: "stat" }, h("div", { class: "muted" }, "수수료"), h("b", {}, won(sold.totals.fee))),
+      h("div", { class: "stat" }, h("div", { class: "muted" }, "정산 예정"), h("b", {}, won(sold.totals.net)))),
+    sold.orders.length ? h("table", { class: "table" },
+      h("thead", {}, h("tr", {}, h("th", {}, "클립"), h("th", {}, "구매자"), h("th", {}, "라이선스"), h("th", {}, "상태"), h("th", { class: "r" }, "정산 금액"))),
+      h("tbody", {}, sold.orders.map(o => h("tr", {},
+        h("td", {}, o.listing.title), h("td", {}, o.buyer_name), h("td", {}, h("a", { href: `/api/orders/${o.id}/license`, target: "_blank" }, o.license_code)),
+        h("td", {}, status(o)), h("td", { class: "r" }, o.status === "paid" ? won(o.seller_amount) : "-"))))) : h("div", { class: "empty" }, "아직 판 클립이 없어요."),
+    h("p", { class: "hint" }, "정산 금액은 결제사 정산 연동 후 등록한 계좌로 지급돼요. 지금은 테스트 모드예요."));
+}
+
+async function publishBought(o) {
+  const st = await ytStatus(true);
+  if (!st.connected) {
+    if (st.configured && confirm("먼저 YouTube 채널을 연결해야 해요. 지금 연결할까요?")) location.href = connectUrl();
+    else if (!st.configured) setupGuide(st);
+    return;
+  }
+  const title = h("input", { type: "text", value: o.listing.title, maxLength: 100 });
+  const go = h("button", { class: "primary", style: { width: "100%", marginTop: "12px" } }, `▶ '${st.channel.title}'에 올리기`);
+  const msg = h("p", { class: "hint" });
+  const close = modal("내 채널에 올리기", h("div", {},
+    h("label", {}, "제목"), title,
+    h("p", { class: "hint" }, "설명란에 출처 문구와 라이선스 번호가 자동으로 들어가요. 올리고 나면 환불할 수 없어요."),
+    go, msg));
+  go.onclick = async () => {
+    go.disabled = true;
+    try {
+      const { job_id } = await api(`/api/orders/${o.id}/publish`, { method: "POST", body: { title: title.value } });
+      const tick = async () => {
+        const job = await api(`/api/jobs/${job_id}`);
+        msg.textContent = `${job.message || ""} ${Math.round((job.progress || 0) * 100)}%`;
+        if (job.status === "done") { toast("올렸어요"); close(); location.reload(); }
+        else if (job.status === "error") { toast(job.error, true); go.disabled = false; }
+        else setTimeout(tick, 800);
+      };
+      tick();
+    } catch (e) { toast(e.message, true); go.disabled = false; }
+  };
 }

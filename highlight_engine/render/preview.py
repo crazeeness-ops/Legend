@@ -23,7 +23,7 @@ def _background(video: str | None, at: float) -> np.ndarray:
         from .compose import _fit_with_blur
 
         png = subprocess.run(
-            ["ffmpeg", "-v", "error", "-ss", str(at), "-i", video, "-frames:v", "1",
+            ["ffmpeg", "-nostdin", "-v", "error", "-ss", str(at), "-i", video, "-frames:v", "1",
              "-f", "image2pipe", "-vcodec", "png", "-"],
             capture_output=True, check=True,
         ).stdout
@@ -43,7 +43,7 @@ def render_still(style: CaptionStyle, background: np.ndarray, *, title: str | No
         cv2.imwrite(str(bg), background)
         sub.write_text(ass, encoding="utf-8")
         subprocess.run(
-            ["ffmpeg", "-v", "error", "-y", "-loop", "1", "-t", "3", "-r", "25", "-i", str(bg),
+            ["ffmpeg", "-nostdin", "-v", "error", "-y", "-loop", "1", "-t", "3", "-r", "25", "-i", str(bg),
              "-vf", f"ass=filename={sub}", "-ss", str(SNAPSHOT_AT), "-frames:v", "1", "-update", "1", str(out)],
             check=True,
         )
