@@ -216,7 +216,7 @@ def test_cli_list_presets_json_and_preview(tmp_path):
                          cwd=ROOT, capture_output=True, text=True, check=True).stdout
     catalog = json.loads(out)
     assert [c["id"] for c in catalog] == list(PRESETS) and catalog[0]["label"]
-    assert preset_catalog()[0]["id"] == "basic"
+    assert preset_catalog()[0]["id"] == "legend" and preset_catalog()[0]["mode"] == "signature"
     if shutil.which("ffmpeg"):
         png = tmp_path / "g.png"
         subprocess.run([sys.executable, "-m", "highlight_engine.render", "--preview", str(png),
@@ -226,3 +226,47 @@ def test_cli_list_presets_json_and_preview(tmp_path):
 
         img = cv2.imread(str(png))
         assert img.shape[1] == 360 * 4 and img.shape[0] > 640 * 3  # 12 tiles incl. "custom"
+
+
+# ---------- signature style ----------
+
+from highlight_engine.render.signature import split_lines  # noqa: E402
+from highlight_engine.render.textmetrics import text_width  # noqa: E402
+
+
+def test_split_lines_balances_two_lines():
+    assert split_lines([100, 100], 20) == [[0, 1]]
+    assert split_lines([400, 300, 300, 200], 20, max_w=920) == [[0, 1], [2, 3]]
+
+
+def test_text_width_scales_and_orders():
+    a = text_width("부업", "Noto Sans CJK KR", True, 86)
+    b = text_width("부업으로", "Noto Sans CJK KR", True, 86)
+    assert 0 < a < b and text_width("부업", "Noto Sans CJK KR", True, 172) == pytest.approx(2 * a, rel=0.02)
+
+
+def test_signature_marker_per_word_with_wipe_and_keyword_switch():
+    ass = build_ass(SAMPLE, clip_start=0, duration=2, style="legend", keywords=["100만"], title="부업의 진실")
+    lines = ass.splitlines()
+    markers = [l for l in lines if l.startswith("Dialogue: 2,")]
+    shadows = [l for l in lines if l.startswith("Dialogue: 1,")]
+    texts = [l for l in lines if l.startswith("Dialogue: 3,")]
+    assert len(markers) == len(shadows) == len(texts) == 4  # one highlighter + text state per spoken word
+    assert all("\\p1" in m and "\\t(0,110,\\clip(" in m and "\\frz" in m for m in markers)
+    assert "\\c&H6E3DFF&" in markers[0]  # brand pink FF3D6E
+    gold = "\\c&H4DC9FF&"
+    assert gold in texts[0] and gold not in texts[1]  # keyword gold, but white while highlighted
+    assert "\\move(" in texts[0] and "\\pos(" in texts[1]  # page rises in once
+    # highlighter sits under the spoken word: its x-range overlaps that word's measured span
+    xs = [float(v) for v in markers[1].split("}", 1)[1].split()[1::3][:2]]
+    assert 300 < xs[0] < 800
+    # title card: rounded background + brand stripe + text
+    assert sum(1 for l in lines if l.startswith(("Dialogue: 4,", "Dialogue: 5,", "Dialogue: 6,"))) == 3
+
+
+def test_signature_long_page_uses_two_lines():
+    long = words(("직장인부업월백만원", 0, .5), ("진짜가능한가요정말로", .5, 1.0), ("궁금합니다", 1.0, 1.5))
+    st = with_brand("legend", max_chars=40, max_words=6)
+    texts = [l for l in build_ass(long, clip_start=0, duration=2, style=st).splitlines() if l.startswith("Dialogue: 3,")]
+    ys = {l.split("\\pos(540,")[1].split(")")[0] for l in texts if "\\pos(540," in l}
+    assert len(ys) == 2  # two stacked lines

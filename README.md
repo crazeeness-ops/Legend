@@ -51,6 +51,7 @@ python -m highlight_engine.render clips.json video.mp4 --out-dir shorts/ --ranks
 
 | 프리셋 | 이름 | 효과 |
 |---|---|---|
+| **`legend`** | **레전드 마커 (시그니처, 기본값)** | 말하는 단어 뒤로 브랜드 핑크 형광펜이 손으로 긋듯 0.1초 만에 칠해짐. 단어마다 살짝 다른 기울기, 키워드는 골드, 자막이 아래에서 떠오르며 등장, 제목은 핑크 띠가 있는 둥근 카드 |
 | `basic` | 기본 | 흰 글씨 + 검은 외곽선, 말하는 단어는 노란색 |
 | `bold` | 굵은 노랑 | 크고 굵은 노란 글씨, 말하는 단어는 흰색으로 커짐 |
 | `box` | 반투명 박스 | 반투명 검은 배경 박스, 말하는 단어는 민트색 |
@@ -75,6 +76,10 @@ python -m highlight_engine.render clips.json video.mp4 --preset neon \
 echo '{"base": "highlight_box", "font": "Pretendard", "word_box_color": "6C5CE7", "size": 88}' > brand.json
 python -m highlight_engine.render clips.json video.mp4 --style-file brand.json
 ```
+
+시그니처 스타일은 자막 글자 폭을 libass와 같은 폰트 파일로 측정해(`render/textmetrics.py`) 형광펜 도형을
+단어 바로 뒤에 그립니다(`render/signature.py`). 형광펜 색은 `word_box_color`, 키워드 색은 `keyword_color`,
+제목 띠 색은 `title_box_color`로 바꿀 수 있어 브랜드 색에 맞출 수 있습니다.
 
 스타일 파일에는 `CaptionStyle`의 모든 필드를 쓸 수 있습니다(`mode`, `color`, `highlight`, `highlight_scale`,
 `keyword_color`, `outline`, `blur`, `box`, `max_chars`, `max_words`, `position`, `uppercase`, `title_*` …).

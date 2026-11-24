@@ -61,7 +61,7 @@ def test_upload_rejects_bad_files(client):
 def test_project_ready_with_clips_and_words(client, project):
     assert project["status"] == "ready" and project["clips"]
     c = project["clips"][0]
-    assert c["id"] == "c1" and c["words"] and c["edits"]["preset"] == "basic"
+    assert c["id"] == "c1" and c["words"] and c["edits"]["preset"] == "legend"
     assert project["video_info"]["width"] == 1280
     assert any(p["id"] == project["id"] for p in client.get("/api/projects").json())
 

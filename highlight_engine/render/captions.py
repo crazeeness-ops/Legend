@@ -10,6 +10,8 @@ JSON style file. Animation modes:
 - single:  one word at a time, big, popping in
 - sweep:   colour fills each word left-to-right while it is spoken
 - static:  plain page of words, no per-word effect
+- signature: Legend's own look — a hand-drawn highlighter wipes in behind the
+             spoken word (see ``signature.py``)
 """
 
 from __future__ import annotations
@@ -22,7 +24,7 @@ from pathlib import Path
 OUT_W, OUT_H = 1080, 1920
 STRIP_TRAILING = ".,。、"
 BREAK_AFTER = (".", "?", "!", "。", "？", "！", ",")
-MODES = ("karaoke", "box", "reveal", "single", "sweep", "static")
+MODES = ("signature", "karaoke", "box", "reveal", "single", "sweep", "static")
 POSITIONS = {"top": 560, "middle": OUT_H // 2, "bottom": 1560}  # "auto" follows the video layout
 
 
@@ -73,6 +75,10 @@ def _is_hex(v: str) -> bool:
 
 
 PRESETS: dict[str, CaptionStyle] = {
+    "legend": CaptionStyle(label="레전드 마커", description="시그니처 · 말하는 단어 뒤로 형광펜이 손으로 긋듯 칠해짐",
+                           mode="signature", size=86, color="FFFFFF", highlight=None, word_box_color="FF3D6E",
+                           keyword_color="FFC94D", outline=2.5, outline_color="101010", shadow=3, blur=1.2,
+                           max_chars=13, max_words=4, pop_in=False, title_size=56, title_box_color="FF3D6E"),
     "basic": CaptionStyle(label="기본", description="흰 글씨 + 검은 외곽선, 말하는 단어는 노란색"),
     "bold": CaptionStyle(label="굵은 노랑", description="크고 굵은 노란 글씨, 말하는 단어는 흰색으로 커짐",
                          size=96, color="FFE600", highlight="FFFFFF", highlight_scale=112, outline=8,
@@ -277,6 +283,9 @@ def build_ass(
         if page_end <= page_start:
             continue
 
+        if st.mode == "signature":
+            break  # laid out separately below (needs text measurement across the whole page)
+
         if st.mode in ("static", "single"):
             body = " ".join(markup(w, False) for w in page)
             emit(1, page_start, page_end, "Caption", "{" + prefix(page_start, True) + "}" + body)
@@ -300,6 +309,16 @@ def build_ass(
             emit(1, s, e, "Caption", pre + " ".join(markup(x, j == i, hidden(j)) for j, x in enumerate(page)))
             if st.mode == "box":
                 emit(0, s, e, "WordBox", pre + " ".join(box_markup(x, j == i) for j, x in enumerate(page)))
+
+    if st.mode == "signature":
+        from .signature import signature_events, signature_title
+
+        events = signature_events(pages, st, duration=duration, ypos=ypos, keywords=keywords,
+                                  is_keyword=_is_keyword, text_of=text_of, ass_time=ass_time)
+        if title:
+            events = signature_title(title, st, duration=duration, y_top=title_y - 10, ass_time=ass_time,
+                                     escape=escape) + events
+        title = None
 
     if title:
         events.insert(0, f"Dialogue: 2,{ass_time(0)},{ass_time(duration)},Title,,0,0,0,,"

@@ -65,7 +65,7 @@ def render_short(
     clip: dict,
     out_path: str,
     *,
-    style: CaptionStyle | str = "basic",
+    style: CaptionStyle | str = "legend",
     layout: str = "auto",
     show_title: bool = True,
     detector: FaceDetector | None = None,

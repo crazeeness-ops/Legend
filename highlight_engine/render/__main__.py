@@ -18,7 +18,7 @@ from .detect import HaarFaceDetector, YuNetFaceDetector
 
 
 def add_render_args(p: argparse.ArgumentParser) -> None:
-    p.add_argument("--preset", choices=list(PRESETS), default="basic",
+    p.add_argument("--preset", choices=list(PRESETS), default="legend",
                    help="caption style (see --list-presets)")
     p.add_argument("--style-file", help="JSON caption style, e.g. {\"base\": \"bold\", \"font\": \"Pretendard\"}")
     p.add_argument("--font", help="caption font family (overrides the preset)")

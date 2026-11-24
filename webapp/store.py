@@ -20,7 +20,7 @@ from pathlib import Path
 from highlight_engine.models import Transcript
 
 DEFAULT_EDITS = {
-    "preset": "basic",
+    "preset": "legend",
     "style_overrides": {},
     "layout": "auto",
     "shot_overrides": [],
