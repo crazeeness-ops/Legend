@@ -27,6 +27,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
+from highlight_engine.render.media import filter_path
 from highlight_engine.render.textmetrics import font_file
 
 from .db import DB, new_id
@@ -93,7 +94,7 @@ class BuyerPublish(BaseModel):
 def make_preview(master: str, out: str) -> None:
     """Low-res, low-bitrate, watermarked preview (what buyers can watch before paying)."""
     ff = font_file("Noto Sans CJK KR", True)
-    font = f"fontfile='{ff[0]}':" if ff else ""
+    font = f"fontfile='{filter_path(ff[0])}':" if ff else ""
     mark = (f"drawtext={font}text='LEGEND 미리보기':fontsize=40:fontcolor=white@0.38:borderw=2:bordercolor=black@0.25:"
             "x=(w-text_w)/2:y=h*{y}")
     vf = f"scale=540:-2,{mark.format(y='0.28')},{mark.format(y='0.62')}"

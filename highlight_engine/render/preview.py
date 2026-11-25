@@ -9,6 +9,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
+from .media import filter_path
 from .captions import OUT_H, OUT_W, PRESETS, CaptionStyle, build_ass
 
 SAMPLE_WORDS = [
@@ -44,7 +45,7 @@ def render_still(style: CaptionStyle, background: np.ndarray, *, title: str | No
         sub.write_text(ass, encoding="utf-8")
         subprocess.run(
             ["ffmpeg", "-nostdin", "-v", "error", "-y", "-loop", "1", "-t", "3", "-r", "25", "-i", str(bg),
-             "-vf", f"ass=filename={sub}", "-ss", str(SNAPSHOT_AT), "-frames:v", "1", "-update", "1", str(out)],
+             "-vf", f"ass=filename='{filter_path(sub)}'", "-ss", str(SNAPSHOT_AT), "-frames:v", "1", "-update", "1", str(out)],
             check=True,
         )
         return cv2.imread(str(out))

@@ -7,6 +7,7 @@ at the equivalent em size and measure advances.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import unicodedata
 from functools import lru_cache
@@ -17,8 +18,19 @@ except ImportError:  # pragma: no cover
     ImageFont = None
 
 
+KNOWN_FONTS = {  # where the default caption fonts live when fontconfig isn't available
+    ("Malgun Gothic", True): "C:/Windows/Fonts/malgunbd.ttf",
+    ("Malgun Gothic", False): "C:/Windows/Fonts/malgun.ttf",
+    ("Apple SD Gothic Neo", True): "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+    ("Apple SD Gothic Neo", False): "/System/Library/Fonts/AppleSDGothicNeo.ttc",
+}
+
+
 @lru_cache(maxsize=32)
 def font_file(family: str, bold: bool) -> tuple[str, int] | None:
+    known = KNOWN_FONTS.get((family, bold))
+    if known and os.path.exists(known):
+        return known, _face_index(known, "Bold" if bold else "Regular")
     try:
         out = subprocess.run(
             ["fc-match", "-f", "%{file}|%{index}", f"{family}:{'bold' if bold else 'regular'}"],
@@ -28,6 +40,19 @@ def font_file(family: str, bold: bool) -> tuple[str, int] | None:
         return (path, int(index or 0)) if path else None
     except (OSError, subprocess.SubprocessError, ValueError):
         return None
+
+
+def _face_index(path: str, style: str) -> int:
+    """Pick the face with this style name inside a font collection (.ttc); 0 for single fonts."""
+    if not path.lower().endswith(".ttc") or ImageFont is None:
+        return 0
+    for i in range(32):
+        try:
+            if ImageFont.truetype(path, 12, index=i).getname()[1].lower() == style.lower():
+                return i
+        except OSError:
+            break
+    return 0
 
 
 @lru_cache(maxsize=64)

@@ -25,6 +25,7 @@ let ME = null; // { user, usage, plans }
 
 async function refreshMe() {
   ME = await api("/api/auth/me").catch(() => null);
+  window.LEGEND_FEATURES = ME?.features || {};
   return ME;
 }
 
@@ -188,7 +189,9 @@ async function homeView() {
   const length = h("select", {}, h("option", { value: "short" }, "짧게 (15~30초)"), h("option", { value: "medium", selected: true }, "보통 (30~60초)"), h("option", { value: "long" }, "길게 (60~90초)"));
   const top = h("input", { type: "number", min: 1, max: 30, value: 10 });
   const prompt = h("input", { type: "text", placeholder: "예: 가격 얘기만 (비워두면 전체에서 추천)" });
-  const selector = h("select", {}, h("option", { value: "claude" }, "Claude AI (권장)"), h("option", { value: "heuristic" }, "오프라인 기본 (API 키 없이)"));
+  const claude = !!ME?.features?.claude;
+  const selector = h("select", {}, h("option", { value: "claude", selected: claude }, claude ? "Claude AI (권장)" : "Claude AI (API 키 필요)"),
+    h("option", { value: "heuristic", selected: !claude }, "오프라인 기본 (API 키 없이)"));
   const trLabel = h("span", { class: "muted" }, "없음 — 음성 인식으로 자동 생성");
   const bar = h("div"), progress = h("div", { class: "progress", style: { display: "none" } }, bar);
   const submit = h("button", { class: "primary", style: { width: "100%" }, disabled: true }, "클립 만들기");

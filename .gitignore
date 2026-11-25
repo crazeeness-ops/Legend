@@ -6,3 +6,5 @@ __pycache__/
 clips/
 .env
 data/
+demo_data/
+.venv/

@@ -18,6 +18,8 @@ JSON style file. Animation modes:
 from __future__ import annotations
 
 import json
+import os
+import sys
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, fields, replace
 from pathlib import Path
@@ -26,6 +28,9 @@ OUT_W, OUT_H = 1080, 1920
 STRIP_TRAILING = ".,。、"
 BREAK_AFTER = (".", "?", "!", "。", "？", "！", ",")
 MODES = ("signature", "sticker", "karaoke", "box", "reveal", "single", "sweep", "static")
+# a Korean-capable font that ships with each OS (override with LEGEND_CAPTION_FONT)
+DEFAULT_FONT = os.environ.get("LEGEND_CAPTION_FONT") or (
+    "Malgun Gothic" if sys.platform == "win32" else "Apple SD Gothic Neo" if sys.platform == "darwin" else "Noto Sans CJK KR")
 POSITIONS = {"top": 560, "middle": OUT_H // 2, "bottom": 1560}  # "auto" follows the video layout
 
 
@@ -34,7 +39,7 @@ class CaptionStyle:
     label: str = "기본"
     description: str = ""
     mode: str = "karaoke"
-    font: str = "Noto Sans CJK KR"
+    font: str = DEFAULT_FONT
     size: int = 80
     bold: bool = True
     uppercase: bool = False

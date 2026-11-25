@@ -15,7 +15,9 @@ function analysisOptions() {
   const length = h("select", {}, h("option", { value: "short" }, "짧게 (15~30초)"), h("option", { value: "medium", selected: true }, "보통 (30~60초)"), h("option", { value: "long" }, "길게 (60~90초)"));
   const top = h("input", { type: "number", min: 1, max: 30, value: 8 });
   const prompt = h("input", { type: "text", placeholder: "예: 실패담만 (선택)" });
-  const selector = h("select", {}, h("option", { value: "claude" }, "Claude AI (권장)"), h("option", { value: "heuristic" }, "오프라인 기본"));
+  const claude = !!(window.LEGEND_FEATURES || {}).claude;
+  const selector = h("select", {}, h("option", { value: "claude", selected: claude }, claude ? "Claude AI (권장)" : "Claude AI (API 키 필요)"),
+    h("option", { value: "heuristic", selected: !claude }, "오프라인 기본"));
   const el = h("div", {},
     h("div", { class: "row field" }, h("div", { class: "grow" }, h("label", {}, "클립 길이"), length), h("div", { style: { width: "90px" } }, h("label", {}, "개수"), top)),
     h("div", { class: "field" }, h("label", {}, "원하는 내용"), prompt),

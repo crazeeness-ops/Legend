@@ -28,6 +28,7 @@ class FakeGoogle:
         self.tokens: dict[str, str] = {}  # access token -> identity
         self.refresh_tokens: dict[str, str] = {}  # refresh token -> identity
         self.identity = "main"  # who "logs in" on the next consent screen
+        self.identity_queue: list[str] = []  # demo: successive logins become these channels in turn
         self.uploads: dict[str, list[str]] = {k: [] for k in CHANNELS}  # identity -> video ids
         self.stats: dict[str, dict] = {}  # video id -> {views, likes}
         self.long_videos: dict[str, dict] = {}  # video id -> {identity, title, seconds}
@@ -55,7 +56,7 @@ class FakeGoogle:
             return self._json(200, {k: {"owner": v.get("owner"), "title": v["snippet"]["title"],
                                         "description": v["snippet"]["description"]} for k, v in self.videos.items()})
         if path == "/o/oauth2/v2/auth":
-            who = q.get("login_hint") or self.identity
+            who = q.get("login_hint") or (self.identity_queue.pop(0) if self.identity_queue else self.identity)
             loc = f"{q['redirect_uri']}?{urlencode({'code': f'code-ok-{who}', 'state': q['state']})}"
             return 302, {"location": loc}, b""
         if path == "/token":

@@ -37,6 +37,9 @@ def main(argv: list[str] | None = None) -> int:
     i.add_argument("--length", choices=["short", "medium", "long"], default="medium")
     i.add_argument("--top", type=int, default=10)
     i.add_argument("--prompt", default="")
+    dm = sub.add_parser("demo", help="체험 모드: 가짜 YouTube·결제 서버와 함께 실행 (키 필요 없음)")
+    dm.add_argument("--port", type=int, default=8000)
+    dm.add_argument("--no-browser", action="store_true")
     sub.add_parser("run-billing", help="charge subscriptions that are due now")
     po = sub.add_parser("payouts", help="list seller payouts past the refund window")
     po.add_argument("--mark-paid", action="store_true", help="record the listed payouts as paid")
@@ -46,6 +49,11 @@ def main(argv: list[str] | None = None) -> int:
     sp.add_argument("plan", choices=["free", "creator", "pro"])
     args = p.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s %(message)s")
+
+    if args.cmd == "demo":
+        from .demo import main as demo
+
+        return demo("demo_data" if args.data == "data" else args.data, args.port, not args.no_browser)
 
     from .server import create_app
 

@@ -15,7 +15,7 @@ import numpy as np
 
 from .captions import PRESETS, CaptionStyle, build_ass
 from .detect import FaceDetector, HaarFaceDetector
-from .media import probe, read_frames
+from .media import filter_path, probe, read_frames
 from .reframe import OUT_H, OUT_W, ReframePlan, Rect, analyze, apply_overrides
 
 
@@ -102,7 +102,7 @@ def render_short(
     with tempfile.TemporaryDirectory() as tmp:
         ass_path = Path(tmp) / "captions.ass"
         ass_path.write_text(ass, encoding="utf-8")
-        ass_filter = f"ass=filename={ass_path}" + (f":fontsdir={fonts_dir}" if fonts_dir else "")
+        ass_filter = f"ass=filename='{filter_path(ass_path)}'" + (f":fontsdir='{filter_path(fonts_dir)}'" if fonts_dir else "")
         cmd = [
             "ffmpeg", "-nostdin", "-v", "error", "-y",
             "-f", "rawvideo", "-pix_fmt", "bgr24", "-s", f"{OUT_W}x{OUT_H}", "-r", f"{info.fps:.6f}", "-i", "-",

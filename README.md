@@ -1,4 +1,26 @@
-# Legend — 하이라이트 엔진 프로토타입
+# Legend — 숏츠 자동 제작 서비스
+
+## 🚀 내 컴퓨터에서 바로 실행해 보기 (체험 모드)
+
+API 키 없이 모든 기능을 눌러볼 수 있어요. YouTube 연결과 결제는 **가짜 서버**로 동작합니다(실제 업로드·실제 돈 없음).
+
+**준비물 (처음 한 번)**
+- Python 3.11 이상 — Windows: https://www.python.org/downloads/ (설치할 때 **Add python.exe to PATH** 체크) / Mac: `brew install python`
+- ffmpeg — Windows: 명령 프롬프트에서 `winget install Gyan.FFmpeg` / Mac: `brew install ffmpeg`
+
+**실행**
+- Windows: `start-windows.bat` 더블클릭
+- Mac: `start-mac.command` 더블클릭 (처음엔 우클릭 → 열기)
+- 직접: `pip install -r requirements.txt` 후 `python -m webapp demo`
+
+브라우저가 열리면 체험 계정으로 로그인하세요 (비밀번호 `demo1234`):
+- `creator@demo.kr` — 크리에이터 (체험 프로젝트가 미리 만들어져 있어요)
+- `buyer@demo.kr` — 구매자·클리퍼
+
+처음 실행은 프로그램 설치 때문에 몇 분 걸려요. 새 영상을 자막 파일 없이 올리면 음성 인식 모델(약 500MB)을 한 번 내려받아요.
+`ANTHROPIC_API_KEY`를 설정하면 Claude 하이라이트 추천을 쓸 수 있어요.
+
+---
 
 긴 영상(팟캐스트·인터뷰·강의)에서 숏츠로 쓸 만한 구간을 찾아 **점수순 클립 후보 JSON**으로 내보내는 엔진입니다.
 이어서 **9:16 세로 전환(얼굴 추적)과 애니메이션 자막을 입힌 숏츠 MP4**까지 렌더링합니다.

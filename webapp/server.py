@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import os
 import re
 from html import escape as html_escape
 from urllib.parse import urlparse
@@ -185,7 +186,8 @@ def create_app(data_dir: str | Path = "data", *, workers: int = 2, public_url: s
         u = user_of(request)
         if not u:
             raise HTTPException(401, "로그인이 필요합니다")
-        return {"user": public_user(u), "usage": accounts.usage(u["id"]), "plans": PLANS}
+        return {"user": public_user(u), "usage": accounts.usage(u["id"]), "plans": PLANS,
+                "features": {"claude": bool(os.environ.get("ANTHROPIC_API_KEY"))}}
 
     @app.patch("/api/auth/me")
     def patch_me(request: Request, body: MePatch):

@@ -10,6 +10,14 @@ from typing import Iterator
 import numpy as np
 
 
+def filter_path(path) -> str:
+    """A file path safe inside an ffmpeg filter argument (quote it with single quotes).
+
+    ``C:\\Users\\me\\a.ass`` → ``C\\:/Users/me/a.ass`` — backslashes become slashes and the drive colon is escaped.
+    """
+    return str(path).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
+
+
 @dataclass
 class VideoInfo:
     width: int

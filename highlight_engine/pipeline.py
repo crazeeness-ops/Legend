@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import logging
 import time
-from dataclasses import dataclass
+import os
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
@@ -38,7 +39,7 @@ class EngineConfig:
     top_n: int = 10
     language: str | None = None  # None = auto-detect
     user_prompt: str | None = None
-    whisper_model: str = "large-v3"
+    whisper_model: str = field(default_factory=lambda: os.environ.get("LEGEND_WHISPER_MODEL", "large-v3"))
 
 
 def run(
