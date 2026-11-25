@@ -334,7 +334,7 @@ def test_clip_sales_end_to_end(env):
     assert buyer3.post(f"/api/orders/{o3['order_id']}/refund").status_code == 400  # published → no refund
 
     sold = seller.get("/api/orders?scope=sold").json()
-    assert sold["totals"] == {"gross": 24000, "fee": 4800, "net": 19200}
+    assert sold["totals"] == {"gross": 24000, "fee": 4800, "net": 19200, "hold": 19200, "payable": 0, "settled": 0}
     assert buyer2.get("/api/orders").json()["totals"]["spent"] == 12000
     assert buyer.post(f"/api/listings/{lid}/report", json={"reason": "출연자 동의 없음"}).json()["ok"]
     assert buyer.patch(f"/api/listings/{lid}", json={"status": "closed"}).status_code == 404  # only the seller
