@@ -50,6 +50,7 @@ def run(
     audio: str | None = None,
     transcript_out: str | None = None,
     retention: list[tuple[float, float]] | None = None,
+    progress=None,  # callable(fraction 0-1, message): transcription is most of the time
 ) -> dict:
     """Run the engine.
 
@@ -66,7 +67,7 @@ def run(
     else:
         from .transcribe import transcribe
 
-        transcript = transcribe(source, language=cfg.language, model_size=cfg.whisper_model)
+        transcript = transcribe(source, language=cfg.language, model_size=cfg.whisper_model, progress=progress)
         media = source
         if transcript_out:
             transcript.save(transcript_out)

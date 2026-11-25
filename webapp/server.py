@@ -218,8 +218,10 @@ def create_app(data_dir: str | Path = "data", *, workers: int = 2, public_url: s
             progress(0.3, "하이라이트 분석 중")
             result = run(str(d / "transcript.json"), selector, config, audio=video, retention=retention)
         else:
-            progress(0.05, "음성 인식 중 (영상 길이에 따라 수 분 소요)")
-            result = run(video, selector, config, transcript_out=str(d / "transcript.json"), retention=retention)
+            progress(0.02, "음성 인식 준비 중")
+            result = run(video, selector, config, transcript_out=str(d / "transcript.json"), retention=retention,
+                         progress=lambda f, m: progress(0.02 + 0.88 * f, m))
+            progress(0.92, "하이라이트 분석 중")
         store.set_clips(pid, result)
         store.update(pid, lambda p: p.update(status="ready", transcript="transcript.json"))
         return {"clips": len(result["clips"])}

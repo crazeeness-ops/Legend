@@ -209,7 +209,7 @@ def test_transcribe_feeds_whisper_ffmpeg_decoded_samples(tmp_path, monkeypatch):
 
     class FakeModel:
         def __init__(self, *a, **k):
-            pass
+            seen["threads"] = k.get("cpu_threads")
 
         def transcribe(self, audio, **kw):
             seen["audio"] = audio
@@ -217,8 +217,10 @@ def test_transcribe_feeds_whisper_ffmpeg_decoded_samples(tmp_path, monkeypatch):
             return [types.SimpleNamespace(words=[word])], types.SimpleNamespace(language="ko", duration=2.0)
 
     monkeypatch.setitem(sys.modules, "faster_whisper", types.SimpleNamespace(WhisperModel=FakeModel))
-    t = tr.transcribe(str(wav), model_size="small")
+    updates = []
+    t = tr.transcribe(str(wav), model_size="small", progress=lambda f, m: updates.append((f, m)))
     assert isinstance(seen["audio"], np.ndarray) and seen["audio"].dtype == np.float32
+    assert seen["threads"] >= 1 and updates[0][1].startswith("음성 인식 준비") and "%" in updates[-1][1]
     assert abs(len(seen["audio"]) - 2 * tr.SAMPLE_RATE) < 400
     assert t.words[0].text == "안녕" and t.language == "ko"
 
@@ -233,7 +235,7 @@ def test_transcribe_falls_back_to_cpu_when_cuda_libs_are_missing(tmp_path, monke
     devices = []
 
     class FakeModel:
-        def __init__(self, size, device, compute_type):
+        def __init__(self, size, device, compute_type, **kw):
             devices.append((device, compute_type))
             self.device = device
 
