@@ -195,3 +195,29 @@ def test_pipeline_with_audio_and_cli(tmp_path):
     data = json.loads(out.read_text())
     assert any(c["score_detail"]["signal"] != 50 for c in data["clips"])
     assert len(list((tmp_path / "clips").glob("*.mp4"))) == len(data["clips"])
+
+
+def test_transcribe_feeds_whisper_ffmpeg_decoded_samples(tmp_path, monkeypatch):
+    """faster-whisper's own decoder breaks with newer PyAV; we must pass a numpy array."""
+    import types
+
+    from highlight_engine import transcribe as tr
+
+    wav = tmp_path / "a.wav"
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=frequency=300:duration=2", str(wav)], check=True)
+    seen = {}
+
+    class FakeModel:
+        def __init__(self, *a, **k):
+            pass
+
+        def transcribe(self, audio, **kw):
+            seen["audio"] = audio
+            word = types.SimpleNamespace(word=" 안녕", start=0.1, end=0.5, probability=0.9)
+            return [types.SimpleNamespace(words=[word])], types.SimpleNamespace(language="ko", duration=2.0)
+
+    monkeypatch.setitem(sys.modules, "faster_whisper", types.SimpleNamespace(WhisperModel=FakeModel))
+    t = tr.transcribe(str(wav), model_size="small")
+    assert isinstance(seen["audio"], np.ndarray) and seen["audio"].dtype == np.float32
+    assert abs(len(seen["audio"]) - 2 * tr.SAMPLE_RATE) < 400
+    assert t.words[0].text == "안녕" and t.language == "ko"

@@ -285,8 +285,10 @@ function waitingView(project) {
     const p = await api(`/api/projects/${project.id}`);
     if (p.status === "ready") return route();
     if (p.status === "error") {
+      const keyIssue = /api[_ ]?key|authentication|x-api-key|401/i.test(p.error || "");
       body.replaceChildren(h("h2", {}, "분석에 실패했어요"), h("p", { class: "muted" }, p.error || ""),
-        h("p", { class: "hint" }, "Claude 추천을 쓰려면 서버에 ANTHROPIC_API_KEY가 필요합니다. 오프라인 기본 방식으로 다시 올려볼 수 있어요."),
+        keyIssue ? h("p", { class: "hint" }, "Claude 추천을 쓰려면 ANTHROPIC_API_KEY가 필요해요. 업로드할 때 '오프라인 기본' 방식을 고르면 키 없이 쓸 수 있어요.")
+          : h("p", { class: "hint" }, "같은 문제가 계속되면 이 화면을 캡처해서 알려 주세요."),
         h("a", { href: "#/" }, "처음으로"));
       return;
     }
