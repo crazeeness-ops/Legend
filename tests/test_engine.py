@@ -221,3 +221,38 @@ def test_transcribe_feeds_whisper_ffmpeg_decoded_samples(tmp_path, monkeypatch):
     assert isinstance(seen["audio"], np.ndarray) and seen["audio"].dtype == np.float32
     assert abs(len(seen["audio"]) - 2 * tr.SAMPLE_RATE) < 400
     assert t.words[0].text == "안녕" and t.language == "ko"
+
+
+def test_transcribe_falls_back_to_cpu_when_cuda_libs_are_missing(tmp_path, monkeypatch):
+    import types
+
+    from highlight_engine import transcribe as tr
+
+    wav = tmp_path / "a.wav"
+    subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi", "-i", "sine=frequency=300:duration=1", str(wav)], check=True)
+    devices = []
+
+    class FakeModel:
+        def __init__(self, size, device, compute_type):
+            devices.append((device, compute_type))
+            self.device = device
+
+        def transcribe(self, audio, **kw):
+            def gen():
+                if self.device != "cpu":  # like CTranslate2: fails lazily once decoding starts
+                    raise RuntimeError("Library cublas64_12.dll is not found or cannot be loaded")
+                yield types.SimpleNamespace(words=[types.SimpleNamespace(word="네", start=0.1, end=0.3, probability=1.0)])
+            return gen(), types.SimpleNamespace(language="ko", duration=1.0)
+
+    monkeypatch.setitem(sys.modules, "faster_whisper", types.SimpleNamespace(WhisperModel=FakeModel))
+    monkeypatch.delenv("LEGEND_WHISPER_DEVICE", raising=False)
+    t = tr.transcribe(str(wav), model_size="small")
+    assert devices == [("auto", "auto"), ("cpu", "int8")] and t.words[0].text == "네"
+
+    class Broken(FakeModel):
+        def transcribe(self, audio, **kw):
+            raise RuntimeError("model file is corrupted")
+
+    monkeypatch.setitem(sys.modules, "faster_whisper", types.SimpleNamespace(WhisperModel=Broken))
+    with pytest.raises(RuntimeError, match="corrupted"):  # unrelated errors are not hidden
+        tr.transcribe(str(wav), model_size="small")
