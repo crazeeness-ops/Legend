@@ -1,7 +1,7 @@
 anthropic>=0.80
 faster-whisper>=1.0
 numpy>=1.26
-opencv-python-headless>=4.9
+opencv-python-headless>=4.9,<5  # 5.x Windows wheels ship without CascadeClassifier
 pillow>=10  # caption text measurement
 fastapi>=0.110
 uvicorn>=0.29

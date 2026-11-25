@@ -11,8 +11,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Protocol
 
+import logging
+
 import cv2
 import numpy as np
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -42,12 +46,18 @@ class FaceDetector(Protocol):
 
 class HaarFaceDetector:
     def __init__(self, min_rel_size: float = 0.06) -> None:
+        self.min_rel_size = min_rel_size
+        self.available = hasattr(cv2, "CascadeClassifier") and hasattr(cv2, "data")
+        if not self.available:  # e.g. some OpenCV 5.x builds; keep working without face tracking
+            log.warning("OpenCV has no CascadeClassifier (install opencv-python-headless<5); faces won't be tracked")
+            return
         base = cv2.data.haarcascades
         self.frontal = cv2.CascadeClassifier(base + "haarcascade_frontalface_default.xml")
         self.profile = cv2.CascadeClassifier(base + "haarcascade_profileface.xml")
-        self.min_rel_size = min_rel_size
 
     def detect(self, frame_bgr: np.ndarray) -> list[Face]:
+        if not self.available:
+            return []
         gray = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2GRAY)
         h = gray.shape[0]
         min_px = max(20, int(h * self.min_rel_size))
