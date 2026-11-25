@@ -285,3 +285,5 @@ input[type=datetime-local]:disabled { opacity: .4; }
 .table td.actions button { margin-left: 4px; }
 .tabs button { font-size: 13px; padding: 12px 2px; }
 @media (max-width: 900px) { .listing { grid-template-columns: 1fr; } }
+.pay-result .big { font-size: 44px; }
+.pay-result h2 { margin: 8px 0; }

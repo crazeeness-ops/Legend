@@ -67,9 +67,35 @@ CREATE TABLE IF NOT EXISTS reports (
   id INTEGER PRIMARY KEY AUTOINCREMENT, listing_id TEXT NOT NULL, reporter_id TEXT NOT NULL, reason TEXT NOT NULL,
   created_at REAL NOT NULL, status TEXT NOT NULL DEFAULT 'open'
 );
+CREATE TABLE IF NOT EXISTS toss_customers (
+  user_id TEXT PRIMARY KEY REFERENCES users(id), customer_key TEXT UNIQUE NOT NULL
+);
+CREATE TABLE IF NOT EXISTS subscriptions (
+  user_id TEXT PRIMARY KEY REFERENCES users(id), plan TEXT NOT NULL, pending_plan TEXT,
+  status TEXT NOT NULL, billing_key TEXT, customer_key TEXT NOT NULL, card_label TEXT,
+  period_start REAL, period_end REAL, next_charge_at REAL, retry_count INTEGER NOT NULL DEFAULT 0,
+  cancel_at_period_end INTEGER NOT NULL DEFAULT 0, last_error TEXT, created_at REAL NOT NULL, updated_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS plan_charges (
+  order_id TEXT PRIMARY KEY, user_id TEXT NOT NULL, plan TEXT NOT NULL, amount INTEGER NOT NULL,
+  status TEXT NOT NULL, payment_key TEXT, receipt_url TEXT, failure TEXT,
+  period_start REAL, period_end REAL, created_at REAL NOT NULL
+);
+CREATE TABLE IF NOT EXISTS payment_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, source TEXT NOT NULL, event_type TEXT, payment_key TEXT, order_id TEXT,
+  status TEXT, note TEXT, created_at REAL NOT NULL
+);
 CREATE INDEX IF NOT EXISTS idx_orders_buyer ON orders(buyer_id);
 CREATE INDEX IF NOT EXISTS idx_orders_seller ON orders(seller_id);
 """
+
+
+MIGRATIONS = [
+    ("orders", "receipt_url", "TEXT"),
+    ("orders", "method", "TEXT"),
+    ("orders", "failure", "TEXT"),
+    ("orders", "settled_at", "REAL"),
+]
 
 
 def new_id(prefix: str) -> str:
@@ -86,6 +112,10 @@ class DB:
         self._lock = threading.RLock()
         with self._lock:
             self._conn.executescript(SCHEMA)
+            for table, col, decl in MIGRATIONS:  # additive columns for databases created by older versions
+                cols = {r[1] for r in self._conn.execute(f"PRAGMA table_info({table})")}
+                if col not in cols:
+                    self._conn.execute(f"ALTER TABLE {table} ADD COLUMN {col} {decl}")
 
     def q(self, sql: str, *args) -> list[dict]:
         with self._lock:

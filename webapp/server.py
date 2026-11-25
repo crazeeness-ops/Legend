@@ -87,7 +87,8 @@ def make_selector(name: str):
 
 
 def create_app(data_dir: str | Path = "data", *, workers: int = 2, public_url: str = "http://127.0.0.1:8000",
-               google_client_secret: str | None = None, youtube_http=None) -> FastAPI:
+               google_client_secret: str | None = None, youtube_http=None, toss_http=None,
+               allow_mock_payments: bool = True, billing_interval: float = 0) -> FastAPI:
     store = Store(data_dir)
     jobs = Jobs(workers)
     db = DB(Path(data_dir) / "legend.db")
@@ -115,19 +116,22 @@ def create_app(data_dir: str | Path = "data", *, workers: int = 2, public_url: s
     async def guard(request: Request, call_next):
         path = request.url.path
         request.state.user = accounts.user_for_session(request.cookies.get(SESSION_COOKIE))
-        if path.startswith(("/api/", "/oauth/")):
+        if path.startswith("/api/webhooks/"):
+            return await call_next(request)  # verified by re-reading the payment from Toss, not by cookies
+        if path.startswith(("/api/", "/oauth/", "/pay/", "/billing/")):
             if request.method not in ("GET", "HEAD", "OPTIONS") and request.headers.get(CSRF_HEADER) != CSRF_VALUE:
                 return JSONResponse({"detail": "잘못된 요청입니다"}, status_code=403)
-            if path.startswith("/oauth/") and request.url.netloc != public_host:
+            redirect_path = path.startswith(("/oauth/", "/pay/", "/billing/"))
+            if redirect_path and request.url.netloc != public_host:
                 # cookies are per host: send the user to the address the OAuth redirect uses
                 target = public_url.rstrip("/") + ("/#/channel" if path.endswith("/callback") else str(request.url.path)
                                                    + ("?" + request.url.query if request.url.query else ""))
                 return RedirectResponse(target, status_code=303)
-            if path.startswith("/oauth/") and request.state.user is None:
+            if redirect_path and request.state.user is None:
                 return HTMLResponse(
                     "<!doctype html><meta charset=utf-8><title>로그인 필요</title><body style='font-family:sans-serif;"
                     "background:#0f1115;color:#e8eaf0;padding:40px'><h2>로그인 세션을 찾을 수 없어요</h2>"
-                    f"<p>Legend Clips에 로그인한 뒤 다시 연결해 주세요. 항상 <b>{html_escape(public_url)}</b> 주소로 접속해야 해요.</p>"
+                    f"<p>Legend Clips에 로그인한 뒤 다시 시도해 주세요. 항상 <b>{html_escape(public_url)}</b> 주소로 접속해야 해요.</p>"
                     f"<a style='color:#ff4d6d' href='{html_escape(public_url)}/#/login'>로그인하러 가기</a>", status_code=401)
             if not path.startswith("/api/auth/") and request.state.user is None:
                 return JSONResponse({"detail": "로그인이 필요합니다"}, status_code=401)
@@ -486,7 +490,9 @@ def create_app(data_dir: str | Path = "data", *, workers: int = 2, public_url: s
         return j
 
     # ------------------------------------------------------------------ YouTube publishing
-    from . import campaigns, channel, publish, sales
+    from . import billing, campaigns, channel, publish, sales
+    from .payments import DisabledPayments, MockPayments, TossProvider
+    from .toss import TossClient, TossConfig
     from .youtube import AccountRegistry, OAuthConfig
 
     oauth = OAuthConfig.load(google_client_secret, public_url.rstrip("/") + "/oauth/google/callback")
@@ -494,7 +500,13 @@ def create_app(data_dir: str | Path = "data", *, workers: int = 2, public_url: s
     publish.register(app, app.state.youtube)
     channel.register(app, app.state.youtube)
     campaigns.register(app, app.state.youtube)
+    toss_cfg = TossConfig.from_env()
+    toss = TossClient(toss_cfg, http=toss_http) if toss_cfg else None
+    app.state.toss = toss
+    app.state.payments = (TossProvider(toss, public_url) if toss
+                          else MockPayments() if allow_mock_payments else DisabledPayments())
     sales.register(app, app.state.youtube)
+    billing.register(app, toss, public_url, scheduler_interval=billing_interval)
 
     # ------------------------------------------------------------------ frontend
     app.mount("/static", StaticFiles(directory=STATIC), name="static")

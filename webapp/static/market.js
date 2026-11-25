@@ -1,6 +1,7 @@
 // "내 채널" (creator) and "클리핑 마켓" (creators + clippers) screens.
 import { h, api, toast, fmt, upload, won, num, modal } from "./util.js";
 import { ytStatus, setupGuide } from "./publish.js";
+import { requestCardPayment } from "./pay.js";
 
 const connectUrl = () => `/oauth/google/start?return_to=${encodeURIComponent("/" + location.hash)}`;
 const dday = ts => {
@@ -328,9 +329,10 @@ export async function listingView(app, topbar, lid) {
       h("p", { class: "legal" }, LEGAL_NOTICE))));
 }
 
-function checkout(l) {
+async function checkout(l) {
+  const cfg = await api("/api/billing").catch(() => ({ configured: false }));
   const agree = h("input", { type: "checkbox" });
-  const pay = h("button", { class: "primary", style: { width: "100%" } }, `${won(l.price)} 결제하기 (테스트 모드)`);
+  const pay = h("button", { class: "primary", style: { width: "100%" } }, cfg.configured ? `${won(l.price)} 결제하기` : `${won(l.price)} 결제하기 (테스트 모드)`);
   const close = modal("결제", h("div", {},
     h("table", { class: "table" }, h("tbody", {},
       h("tr", {}, h("td", {}, "상품"), h("td", {}, l.title)),
@@ -339,12 +341,15 @@ function checkout(l) {
     h("label", { class: "row check", style: { margin: "12px 0" } }, agree,
       h("span", {}, "이용 조건(출처 표기, 기간, 재판매 금지)과 환불 규정(다운로드·게시 후 환불 불가)을 확인했어요.")),
     pay,
-    h("p", { class: "hint" }, "지금은 실제 돈이 오가지 않는 테스트 결제예요. 실제 결제는 결제사(PG) 연동 후 열려요.")));
+    h("p", { class: "hint" }, cfg.configured
+      ? ["토스페이먼츠 결제창에서 카드로 결제해요. ", cfg.test_mode ? "(지금은 테스트 키라 실제로 돈이 나가지 않아요)" : ""]
+      : "지금은 실제 돈이 오가지 않는 테스트 결제예요.")));
   pay.onclick = async () => {
     if (!agree.checked) return toast("이용 조건과 환불 규정을 확인해 주세요", true);
     pay.disabled = true;
     try {
       const o = await api(`/api/listings/${l.id}/orders`, { method: "POST" });
+      if (o.provider === "toss") { await requestCardPayment(o); return; } // leaves the page; we come back via /pay/success
       await api(`/api/orders/${o.order_id}/confirm`, { method: "POST", body: {} });
       close(); toast("구매가 완료됐어요"); location.hash = "#/market?orders";
     } catch (e) { toast(e.message, true); pay.disabled = false; }
@@ -380,6 +385,7 @@ async function ordersTab(body) {
             h("a", { href: `/api/orders/${o.id}/download` }, h("button", { class: "small" }, "⬇ 받기")),
             h("button", { class: "small", onclick: () => publishBought(o) }, "▶ 내 채널에 올리기")] : null,
           h("a", { href: `/api/orders/${o.id}/license`, target: "_blank" }, h("button", { class: "small ghost" }, "이용 허락서")),
+          o.receipt_url ? h("a", { href: o.receipt_url, target: "_blank", rel: "noopener" }, h("button", { class: "small ghost" }, "영수증")) : null,
           o.refundable ? h("button", { class: "small ghost", onclick: async () => {
             if (!confirm("환불할까요? 라이선스가 사라져요.")) return;
             try { await api(`/api/orders/${o.id}/refund`, { method: "POST" }); toast("환불했어요"); location.reload(); } catch (e) { toast(e.message, true); }
@@ -387,14 +393,17 @@ async function ordersTab(body) {
     h("h2", { class: "sec-title" }, "판 클립"),
     h("div", { class: "stat-row" },
       h("div", { class: "stat" }, h("div", { class: "muted" }, "판매 금액"), h("b", {}, won(sold.totals.gross))),
-      h("div", { class: "stat" }, h("div", { class: "muted" }, "수수료"), h("b", {}, won(sold.totals.fee))),
-      h("div", { class: "stat" }, h("div", { class: "muted" }, "정산 예정"), h("b", {}, won(sold.totals.net)))),
+      h("div", { class: "stat" }, h("div", { class: "muted" }, "수수료 (20%)"), h("b", {}, won(sold.totals.fee))),
+      h("div", { class: "stat" }, h("div", { class: "muted" }, "환불 가능 기간"), h("b", {}, won(sold.totals.hold))),
+      h("div", { class: "stat" }, h("div", { class: "muted" }, "정산 대기"), h("b", {}, won(sold.totals.payable))),
+      h("div", { class: "stat" }, h("div", { class: "muted" }, "지급 완료"), h("b", {}, won(sold.totals.settled)))),
     sold.orders.length ? h("table", { class: "table" },
       h("thead", {}, h("tr", {}, h("th", {}, "클립"), h("th", {}, "구매자"), h("th", {}, "라이선스"), h("th", {}, "상태"), h("th", { class: "r" }, "정산 금액"))),
       h("tbody", {}, sold.orders.map(o => h("tr", {},
         h("td", {}, o.listing.title), h("td", {}, o.buyer_name), h("td", {}, h("a", { href: `/api/orders/${o.id}/license`, target: "_blank" }, o.license_code)),
-        h("td", {}, status(o)), h("td", { class: "r" }, o.status === "paid" ? won(o.seller_amount) : "-"))))) : h("div", { class: "empty" }, "아직 판 클립이 없어요."),
-    h("p", { class: "hint" }, "정산 금액은 결제사 정산 연동 후 등록한 계좌로 지급돼요. 지금은 테스트 모드예요."));
+        h("td", {}, status(o)), h("td", { class: "r" }, o.status === "paid" ? [won(o.seller_amount),
+          h("div", { class: "muted", style: { fontSize: "11px" } }, { hold: "환불 가능 기간", payable: "정산 대기", settled: "지급 완료" }[o.settle_status] || "")] : "-"))))) : h("div", { class: "empty" }, "아직 판 클립이 없어요."),
+    h("p", { class: "hint" }, "판매 후 7일(환불 가능 기간)이 지나면 정산 대기로 바뀌고, 정산일에 지급돼요."));
 }
 
 async function publishBought(o) {

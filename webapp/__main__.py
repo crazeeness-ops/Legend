@@ -2,7 +2,9 @@
 
   python -m webapp serve [--data data] [--port 8000]
   python -m webapp import VIDEO --email you@example.com [--transcript T.json] [--selector heuristic]
-  python -m webapp set-plan you@example.com pro        # until payments are connected
+  python -m webapp set-plan you@example.com pro        # admin override
+  python -m webapp run-billing                         # charge due subscriptions (if not using the built-in scheduler)
+  python -m webapp payouts [--mark-paid]               # seller payouts after the refund window
 """
 
 from __future__ import annotations
@@ -22,7 +24,9 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--port", type=int, default=8000)
     s.add_argument("--google-client-secret", help="OAuth client JSON from Google Cloud (YouTube upload)")
-    s.add_argument("--public-url", help="URL users open, for the OAuth redirect (default http://HOST:PORT)")
+    s.add_argument("--public-url", help="URL users open, for OAuth/payment redirects (default http://HOST:PORT)")
+    s.add_argument("--production", action="store_true", help="never fall back to test-mode payments")
+    s.add_argument("--billing-interval", type=float, default=3600, help="seconds between renewal runs (0 = off)")
 
     i = sub.add_parser("import", help="create a project from a local video (and optional transcript)")
     i.add_argument("video")
@@ -33,6 +37,10 @@ def main(argv: list[str] | None = None) -> int:
     i.add_argument("--length", choices=["short", "medium", "long"], default="medium")
     i.add_argument("--top", type=int, default=10)
     i.add_argument("--prompt", default="")
+    sub.add_parser("run-billing", help="charge subscriptions that are due now")
+    po = sub.add_parser("payouts", help="list seller payouts past the refund window")
+    po.add_argument("--mark-paid", action="store_true", help="record the listed payouts as paid")
+    po.add_argument("--csv", help="write the list to this CSV file")
     sp = sub.add_parser("set-plan", help="change a user's plan (admin)")
     sp.add_argument("email")
     sp.add_argument("plan", choices=["free", "creator", "pro"])
@@ -43,9 +51,26 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.cmd == "serve":
         app = create_app(args.data, google_client_secret=args.google_client_secret,
-                         public_url=args.public_url or f"http://{args.host}:{args.port}")
+                         public_url=args.public_url or f"http://{args.host}:{args.port}",
+                         allow_mock_payments=not args.production, billing_interval=args.billing_interval)
     else:
         app = create_app(args.data)
+    if args.cmd == "run-billing":
+        for r in app.state.billing.run_due():
+            print(r)
+        return 0
+    if args.cmd == "payouts":
+        from .settlement import mark_paid, payable, to_csv
+
+        rows = payable(app.state.db)
+        text = to_csv(rows)
+        if args.csv:
+            Path(args.csv).write_text(text, encoding="utf-8-sig")
+        print(text)
+        print(f"합계 {sum(r['net'] for r in rows):,}원 / 판매자 {len(rows)}명")
+        if args.mark_paid:
+            print(f"{mark_paid(app.state.db, rows)}건을 지급 완료로 표시했어요")
+        return 0
     if args.cmd == "serve":
         import uvicorn
 

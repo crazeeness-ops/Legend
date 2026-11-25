@@ -21,14 +21,17 @@ import shutil
 import subprocess
 import time
 from datetime import datetime, timezone
+from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from pydantic import BaseModel, Field
 
 from highlight_engine.render.textmetrics import font_file
 
 from .db import DB, new_id
+from .payments import MockPayments, PaymentUnavailable, customer_key
+from .toss import TossError
 from .youtube import AccountRegistry, VideoMeta, YouTubeError
 
 FEE_RATE = 0.20
@@ -36,18 +39,6 @@ TERMS_VERSION = "2026-11-v1"
 LICENSE_DAYS = (30, 90, 365, 0)  # 0 = no end date
 REFUND_DAYS = 7
 MIN_PRICE, MAX_PRICE = 1_000, 5_000_000
-
-
-class MockPayments:
-    """Test-mode payments: always succeeds. Replace with a PG adapter (e.g. Toss Payments confirm API)."""
-
-    name = "mock"
-
-    def confirm(self, order: dict, payment_key: str | None) -> str:
-        return payment_key or f"mock_{order['id']}"
-
-    def refund(self, order: dict) -> None:
-        return None
 
 
 def suggest_price(source_views: int, score: int, duration: float) -> dict:
@@ -117,6 +108,7 @@ def register(app: FastAPI, registry: AccountRegistry) -> None:
     root.mkdir(parents=True, exist_ok=True)
     if not hasattr(app.state, "payments"):
         app.state.payments = MockPayments()
+    app.state.sales_root = root
 
     def uid_of(request: Request) -> str:
         return request.state.user["id"]
@@ -285,31 +277,95 @@ def register(app: FastAPI, registry: AccountRegistry) -> None:
             raise HTTPException(400, "판매가 끝난 클립입니다")
         fee = int(round(l["price"] * FEE_RATE))
         oid = new_id("o")
+        order_row = {"id": oid, "amount": l["price"]}
+        try:
+            checkout = app.state.payments.checkout(order_row, request.state.user, customer_key(db, uid))
+        except PaymentUnavailable as e:
+            raise HTTPException(503, str(e))
         db.x("INSERT INTO orders (id,listing_id,buyer_id,seller_id,amount,fee,seller_amount,status,provider,created_at) "
              "VALUES (?,?,?,?,?,?,?,?,?,?)", oid, lid, uid, l["seller_id"], l["price"], fee, l["price"] - fee, "pending",
              app.state.payments.name, time.time())
-        return {"order_id": oid, "amount": l["price"], "order_name": l["title"][:40], "provider": app.state.payments.name}
+        return {"order_id": oid, "amount": l["price"], "order_name": l["title"][:40], **checkout}
 
-    @app.post("/api/orders/{oid}/confirm")
-    def confirm(request: Request, oid: str, body: Confirm = Confirm()):
-        uid = uid_of(request)
-        o = order(oid, uid, buyer_only=True)
-        if o["status"] != "pending":
-            raise HTTPException(400, "이미 처리된 주문입니다")
+    def mark_paid(oid: str, paid: dict) -> bool:
+        """Grant the licence for a confirmed payment. False if the clip sold out meanwhile."""
         with db.tx():
+            o = db.one("SELECT * FROM orders WHERE id=?", oid)
+            if o["status"] == "paid":
+                return True
             l = listing(o["listing_id"])
             if not is_open(l):
-                db.x("UPDATE orders SET status='cancelled' WHERE id=?", oid)
-                raise HTTPException(409, "그 사이 판매가 끝났어요. 결제되지 않았습니다")
-            key = app.state.payments.confirm(o, body.payment_key)
+                db.x("UPDATE orders SET status='cancelled', failure=? WHERE id=?", "판매 종료", oid)
+                return False
             now = time.time()
             until = now + l["license_days"] * 86400 if l["license_days"] else None
             code = "LGD-" + secrets.token_hex(4).upper()
-            db.x("UPDATE orders SET status='paid', payment_key=?, paid_at=?, license_code=?, license_until=? WHERE id=?",
-                 key, now, code, until, oid)
+            db.x("UPDATE orders SET status='paid', payment_key=?, paid_at=?, license_code=?, license_until=?, receipt_url=?, "
+                 "method=? WHERE id=?", paid["payment_key"], now, code, until, paid.get("receipt_url"), paid.get("method"), oid)
             db.x("UPDATE listings SET sold=sold+1, status=CASE WHEN sold+1>=max_sales THEN 'sold_out' ELSE status END "
                  "WHERE id=?", l["id"])
+            return True
+
+    def settle_payment(o: dict, payment_key: str, amount: int) -> tuple[bool, str]:
+        """Server-side checks, then confirm with the provider, then grant the licence."""
+        if o["status"] == "paid":
+            return True, "이미 결제된 주문이에요"
+        if o["status"] != "pending":
+            return False, "이미 처리된 주문이에요"
+        if int(amount) != int(o["amount"]):  # the browser can't change what we charge
+            db.x("UPDATE orders SET status='failed', failure=? WHERE id=?", "금액 불일치", o["id"])
+            return False, "결제 금액이 주문과 달라 결제하지 않았어요"
+        if not is_open(listing(o["listing_id"])):  # don't charge for something we can't deliver
+            db.x("UPDATE orders SET status='cancelled', failure=? WHERE id=?", "판매 종료", o["id"])
+            return False, "그 사이 판매가 끝났어요. 결제되지 않았어요"
+        try:
+            paid = app.state.payments.confirm(o, payment_key, int(amount))
+        except (TossError, PaymentUnavailable) as e:
+            db.x("UPDATE orders SET status='failed', failure=? WHERE id=?", str(e), o["id"])
+            return False, str(e)
+        if not mark_paid(o["id"], paid):  # sold out between the check and the confirm: give the money back
+            try:
+                app.state.payments.refund({**o, "payment_key": paid["payment_key"]}, "재고 소진으로 자동 취소")
+            except TossError:
+                pass
+            return False, "그 사이 판매가 끝나 결제를 자동으로 취소했어요"
+        return True, "구매가 완료됐어요"
+
+    @app.post("/api/orders/{oid}/confirm")
+    def confirm(request: Request, oid: str, body: Confirm = Confirm()):
+        """Test-mode confirmation (real payments come back through /pay/success)."""
+        uid = uid_of(request)
+        o = order(oid, uid, buyer_only=True)
+        if o["provider"] != "mock" or app.state.payments.name != "mock":
+            raise HTTPException(400, "이 주문은 결제창에서 결제해야 해요")
+        if o["status"] != "pending":
+            raise HTTPException(400, "이미 처리된 주문입니다")
+        ok, msg = settle_payment(o, body.payment_key or f"mock_{oid}", o["amount"])
+        if not ok:
+            raise HTTPException(409, msg)
         return order_view(order(oid, uid))
+
+    def result_redirect(kind: str, ok: bool, msg: str, oid: str = "") -> RedirectResponse:
+        return RedirectResponse(f"/#/pay-result?kind={kind}&status={'ok' if ok else 'fail'}&order={oid}&msg={quote(msg)}",
+                                status_code=303)
+
+    @app.get("/pay/success")
+    def pay_success(request: Request, paymentKey: str = "", orderId: str = "", amount: int = 0):
+        o = db.one("SELECT * FROM orders WHERE id=?", orderId)
+        if not o or o["buyer_id"] != uid_of(request):
+            return result_redirect("order", False, "주문을 찾을 수 없어요", orderId)
+        ok, msg = settle_payment(o, paymentKey, amount)
+        return result_redirect("order", ok, msg, orderId)
+
+    @app.get("/pay/fail")
+    def pay_fail(request: Request, code: str = "", message: str = "", orderId: str = ""):
+        o = db.one("SELECT * FROM orders WHERE id=?", orderId)
+        if o and o["buyer_id"] == uid_of(request) and o["status"] == "pending":
+            db.x("UPDATE orders SET status='cancelled', failure=? WHERE id=?", f"{code}: {message}"[:300], orderId)
+        msg = "결제를 취소했어요" if code == "PAY_PROCESS_CANCELED" else (message or "결제에 실패했어요")
+        return result_redirect("order", False, msg, orderId)
+
+    app.state.sales_mark_paid, app.state.sales_listing_open = mark_paid, lambda lid: is_open(listing(lid))
 
     def order_view(o: dict) -> dict:
         l = db.one("SELECT title, credit, license_type, license_days, source_video_id, channel_title, duration "
@@ -317,8 +373,10 @@ def register(app: FastAPI, registry: AccountRegistry) -> None:
         buyer = db.one("SELECT name FROM users WHERE id=?", o["buyer_id"])
         refundable = (o["status"] == "paid" and not o["downloaded_at"] and not o["published_url"]
                       and time.time() - (o["paid_at"] or 0) < REFUND_DAYS * 86400)
+        settle = ("settled" if o["settled_at"] else "hold" if time.time() - (o["paid_at"] or 0) < REFUND_DAYS * 86400
+                  else "payable") if o["status"] == "paid" else None
         return {**{k: v for k, v in o.items() if k != "payment_key"}, "listing": l, "buyer_name": buyer["name"] if buyer else "",
-                "license_valid": license_valid(o), "refundable": refundable}
+                "license_valid": license_valid(o), "refundable": refundable, "settle_status": settle}
 
     @app.get("/api/orders")
     def my_orders(request: Request, scope: str = "bought"):
@@ -327,9 +385,16 @@ def register(app: FastAPI, registry: AccountRegistry) -> None:
         rows = db.q(f"SELECT * FROM orders WHERE {col}=? AND status IN ('paid','refunded') ORDER BY created_at DESC", uid)
         views = [order_view(o) for o in rows]
         paid = [o for o in rows if o["status"] == "paid"]
-        totals = ({"gross": sum(o["amount"] for o in paid), "fee": sum(o["fee"] for o in paid),
-                   "net": sum(o["seller_amount"] for o in paid)} if scope == "sold" else
-                  {"spent": sum(o["amount"] for o in paid)})
+        if scope == "sold":
+            now = time.time()
+            hold = [o for o in paid if not o["settled_at"] and now - o["paid_at"] < REFUND_DAYS * 86400]
+            payable = [o for o in paid if not o["settled_at"] and now - o["paid_at"] >= REFUND_DAYS * 86400]
+            totals = {"gross": sum(o["amount"] for o in paid), "fee": sum(o["fee"] for o in paid),
+                      "net": sum(o["seller_amount"] for o in paid),
+                      "hold": sum(o["seller_amount"] for o in hold), "payable": sum(o["seller_amount"] for o in payable),
+                      "settled": sum(o["seller_amount"] for o in paid if o["settled_at"])}
+        else:
+            totals = {"spent": sum(o["amount"] for o in paid)}
         return {"orders": views, "totals": totals}
 
     @app.get("/api/orders/{oid}/download")
@@ -347,12 +412,24 @@ def register(app: FastAPI, registry: AccountRegistry) -> None:
         o = order(oid, uid_of(request), buyer_only=True)
         if not order_view(o)["refundable"]:
             raise HTTPException(400, f"환불은 결제 후 {REFUND_DAYS}일 이내, 다운로드·게시 전에만 가능합니다")
-        app.state.payments.refund(o)
+        try:
+            app.state.payments.refund(o, "구매자 환불 요청 (다운로드·게시 전)")
+        except TossError as e:
+            raise HTTPException(502, f"환불 처리에 실패했어요: {e}")
+        mark_refunded(oid)
+        return order_view(order(oid, uid_of(request)))
+
+    def mark_refunded(oid: str) -> None:
+        """Record a refund and put the licence slot back on sale (also used by the Toss webhook)."""
         with db.tx():
+            o = db.one("SELECT * FROM orders WHERE id=?", oid)
+            if o["status"] != "paid":
+                return
             db.x("UPDATE orders SET status='refunded', refunded_at=? WHERE id=?", time.time(), oid)
             db.x("UPDATE listings SET sold=MAX(0, sold-1), status=CASE WHEN status='sold_out' AND deadline>? THEN 'on_sale' "
                  "ELSE status END WHERE id=?", time.time(), o["listing_id"])
-        return order_view(order(oid, uid_of(request)))
+
+    app.state.sales_mark_refunded = mark_refunded
 
     @app.post("/api/orders/{oid}/publish")
     def publish_bought(request: Request, oid: str, body: BuyerPublish):

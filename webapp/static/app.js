@@ -3,6 +3,7 @@ import { Preview } from "./preview.js";
 import { ytChip, publishTab, openBulk, PUBLISH_BADGE } from "./publish.js";
 import { channelView, marketView, campaignView, listingView } from "./market.js";
 import { sellTab } from "./sell.js";
+import { requestBillingAuth } from "./pay.js";
 
 const app = document.getElementById("app");
 let cleanup = () => {};
@@ -44,14 +45,77 @@ function topbar(...right) {
     } }, "로그아웃") : null);
 }
 
-function plansModal() {
-  const cur = ME.usage.plan;
-  modal("요금제", h("div", {},
+async function plansModal() {
+  let b;
+  try { b = await api("/api/billing"); } catch (e) { return toast(e.message, true); }
+  const sub = b.subscription && ["active", "past_due"].includes(b.subscription.status) ? b.subscription : null;
+  const date = ts => new Date(ts * 1000).toLocaleDateString("ko-KR");
+  const krw = n => `${n.toLocaleString("ko-KR")}원`;
+  let close;
+  const act = async (path, body) => {
+    try { await api(path, { method: "POST", body }); close(); await refreshMe(); plansModal(); }
+    catch (e) { toast(e.message, true); }
+  };
+  const subscribe = async (plan, mode) => {
+    try {
+      const info = await api(mode === "card" ? "/api/billing/card" : "/api/billing/start", { method: "POST", body: mode === "card" ? undefined : { plan } });
+      await requestBillingAuth(info); // leaves the page; we come back via /billing/success
+    } catch (e) { toast(e.message, true); }
+  };
+  const planCard = ([id, p]) => {
+    const current = (sub ? sub.plan : ME.usage.plan) === id;
+    let action = null;
+    if (p.price_krw && b.configured) {
+      if (!sub) action = h("button", { class: "primary small", onclick: () => subscribe(id) }, "구독하기");
+      else if (!current) action = sub.pending_plan === id ? h("span", { class: "badge warn" }, "다음 결제일부터")
+        : h("button", { class: "small", onclick: () => act("/api/billing/change", { plan: id }) }, "다음 결제일부터 변경");
+    }
+    return h("div", { class: "plan" + (current ? " on" : "") },
+      h("b", {}, p.label), h("div", { class: "price" }, p.price_krw ? `월 ${krw(p.price_krw)}` : "무료"),
+      h("div", { class: "muted" }, `월 ${p.minutes}분 분석`), current ? h("span", { class: "badge ok" }, "현재") : action);
+  };
+  const subBox = sub ? h("div", { class: "pub-status", style: { marginBottom: "12px" } },
+    h("div", { class: "row" }, h("b", { class: "grow" }, `${sub.plan_label} 구독 중`),
+      sub.status === "past_due" ? h("span", { class: "badge err" }, "결제 실패") : sub.cancel_at_period_end ? h("span", { class: "badge warn" }, "해지 예약") : h("span", { class: "badge ok" }, "정상")),
+    h("p", { class: "hint" }, sub.cancel_at_period_end ? `${date(sub.period_end)}까지 이용하고 무료 요금제로 바뀌어요.`
+      : `다음 결제일 ${date(sub.next_charge_at)} · ${krw(b.plans[sub.pending_plan || sub.plan].price_krw)} · ${sub.card_label || "등록 카드"}`),
+    sub.pending_plan ? h("p", { class: "hint" }, `다음 결제일부터 ${b.plans[sub.pending_plan].label} 요금제로 바뀌어요.`) : null,
+    sub.status === "past_due" ? h("p", { class: "hint", style: { color: "var(--danger)" } },
+      `결제에 실패했어요 (${sub.last_error || ""}). 하루 간격으로 다시 시도하고, 3번 실패하면 무료 요금제로 바뀌어요. 카드를 바꾸면 바로 다시 결제해요.`) : null,
+    h("div", { class: "row" },
+      sub.cancel_at_period_end ? h("button", { class: "small", onclick: () => act("/api/billing/resume") }, "해지 취소")
+        : h("button", { class: "small ghost", onclick: () => confirm("구독을 해지할까요? 남은 기간까지는 계속 쓸 수 있어요.") && act("/api/billing/cancel") }, "구독 해지"),
+      h("button", { class: "small", onclick: () => subscribe(null, "card") }, "카드 변경"))) : null;
+  const history = b.charges.length ? h("table", { class: "table", style: { marginTop: "12px" } },
+    h("thead", {}, h("tr", {}, h("th", {}, "날짜"), h("th", {}, "요금제"), h("th", { class: "r" }, "금액"), h("th", {}, "상태"), h("th", {}))),
+    h("tbody", {}, b.charges.map(c => h("tr", {}, h("td", {}, date(c.created_at)), h("td", {}, b.plans[c.plan].label),
+      h("td", { class: "r" }, krw(c.amount)),
+      h("td", {}, { paid: h("span", { class: "badge ok" }, "결제 완료"), failed: h("span", { class: "badge err", title: c.failure || "" }, "실패"),
+        refunded: h("span", { class: "badge" }, "환불"), pending: h("span", { class: "badge warn" }, "진행 중") }[c.status]),
+      h("td", { class: "r" }, c.receipt_url ? h("a", { href: c.receipt_url, target: "_blank", rel: "noopener" }, "영수증") : null))))) : null;
+  close = modal("요금제", h("div", {},
     h("p", { class: "muted" }, `이번 달 ${ME.usage.used_minutes}분 사용 / ${ME.usage.limit_minutes}분 (원본 영상 길이 기준)`),
-    h("div", { class: "plans" }, Object.entries(ME.plans).map(([id, p]) => h("div", { class: "plan" + (id === cur ? " on" : "") },
-      h("b", {}, p.label), h("div", { class: "price" }, p.price_krw ? `월 ${p.price_krw.toLocaleString("ko-KR")}원` : "무료"),
-      h("div", { class: "muted" }, `월 ${p.minutes}분 분석`), id === cur ? h("span", { class: "badge ok" }, "현재") : null))),
-    h("p", { class: "hint" }, "결제 연동은 준비 중이에요. 지금은 관리자가 요금제를 바꿔 드려요.")));
+    subBox,
+    h("div", { class: "plans" }, Object.entries(b.plans).map(planCard)),
+    b.configured ? h("p", { class: "hint" }, "토스페이먼츠로 카드를 한 번 등록하면 매달 자동으로 결제돼요. 언제든 해지할 수 있어요.",
+      b.test_mode ? " (테스트 키 사용 중: 실제로 돈이 나가지 않아요)" : "")
+      : h("p", { class: "hint" }, "결제가 아직 설정되지 않았어요. 관리자가 요금제를 바꿔 드려요."),
+    history));
+}
+
+function payResultView(query) {
+  const q = new URLSearchParams(query || "");
+  const ok = q.get("status") === "ok";
+  const billing = q.get("kind") === "billing";
+  refreshMe();
+  app.replaceChildren(topbar(), h("main", { class: "page" }, h("div", { class: "card center-card pay-result" },
+    h("div", { class: "big" }, ok ? "✅" : "⚠️"),
+    h("h2", {}, ok ? (billing ? "구독 완료" : "결제 완료") : (billing ? "카드 등록 실패" : "결제되지 않았어요")),
+    h("p", { class: "muted" }, q.get("msg") || ""),
+    h("div", { class: "row", style: { justifyContent: "center", marginTop: "14px" } },
+      billing ? h("button", { class: "primary", onclick: plansModal }, "요금제 보기")
+        : h("a", { href: "#/market?orders" }, h("button", { class: "primary" }, "구매 내역 보기")),
+      h("a", { href: billing ? "#/" : "#/market" }, h("button", {}, billing ? "내 프로젝트" : "클립 더 보기"))))));
 }
 
 // ------------------------------------------------------------------ auth
@@ -104,6 +168,7 @@ async function route() {
     else if (parts[0] === "market" && parts[1]) await campaignView(app, topbar, parts[1]);
     else if (parts[0] === "market") await marketView(app, topbar, query || "shop");
     else if (parts[0] === "shop" && parts[1]) await listingView(app, topbar, parts[1]);
+    else if (parts[0] === "pay-result") payResultView(query);
     else await homeView();
   } catch (e) {
     app.replaceChildren(topbar(), h("div", { class: "center-msg" }, h("h2", {}, "문제가 발생했어요"), h("p", { class: "muted" }, e.message),
