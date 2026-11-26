@@ -1,0 +1,906 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style></head><body>
+<title>말뚝 간격 측정</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans+KR:wght@400;500;700&display=swap">
+<style>
+/* Layout: one-screen field tool. Dark photo stage on top (or left on wide screens), control sheet below (or right). */
+:root {
+  --bg: #eceeea;
+  --surface: #ffffff;
+  --surface-2: #f5f6f3;
+  --ink: #1c2220;
+  --muted: #5b6561;
+  --line: #d3d8d4;
+  --accent: #f0a800;      /* survey-tape yellow */
+  --accent-ink: #1c2220;
+  --pile: #e0502b;        /* marking-paint orange */
+  --warn-bg: #fff3d6;
+  --warn-ink: #6b4a00;
+  --stage: #161a19;
+  --font-ui: "IBM Plex Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, sans-serif;
+  --font-num: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #121514; --surface: #1b201e; --surface-2: #222826; --ink: #e6eae7; --muted: #9ba5a0;
+    --line: #2f3633; --accent: #ffbe1a; --accent-ink: #141716; --pile: #ff6a43;
+    --warn-bg: #3a2f12; --warn-ink: #ffd98a; --stage: #0c0e0d; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #121514; --surface: #1b201e; --surface-2: #222826; --ink: #e6eae7; --muted: #9ba5a0;
+  --line: #2f3633; --accent: #ffbe1a; --accent-ink: #141716; --pile: #ff6a43;
+  --warn-bg: #3a2f12; --warn-ink: #ffd98a; --stage: #0c0e0d; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 14px; overflow: hidden; }
+button, input, select { font: inherit; color: inherit; }
+.app { height: 100%; display: grid; grid-template-rows: auto minmax(220px, 1fr) auto; }
+header {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding-block: 10px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: 10px; margin-right: auto; min-width: 0; }
+.brand-mark { width: 28px; height: 28px; flex: none; }
+.brand h1 { font-size: 16px; font-weight: 700; margin: 0; letter-spacing: -0.01em; white-space: nowrap; }
+.brand small { display: block; color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 38px; padding: 0 14px; border-radius: 8px; border: 1px solid var(--line);
+  background: var(--surface-2); cursor: pointer; font-weight: 500; white-space: nowrap;
+}
+.btn:hover { border-color: var(--muted); }
+.btn:focus-visible, .seg button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.small { min-height: 32px; padding: 0 10px; font-size: 13px; }
+.btn svg { width: 18px; height: 18px; }
+input[type=file] { display: none; }
+
+.stage { position: relative; background: var(--stage); min-height: 0; overflow: hidden; }
+.stage canvas#view { position: absolute; inset: 0; width: 100%; height: 100%; touch-action: none; cursor: crosshair; display: block; }
+.hint {
+  position: absolute; top: 10px; left: max(10px, env(safe-area-inset-left, 0px)); right: max(10px, env(safe-area-inset-right, 0px));
+  display: flex; justify-content: center; pointer-events: none;
+}
+.hint span {
+  background: rgba(10, 12, 11, .78); color: #f2f4f2; padding: 7px 12px; border-radius: 999px; font-size: 13px;
+  border: 1px solid rgba(255,255,255,.14); max-width: 100%; text-align: center;
+}
+.hint b { color: #ffc21a; font-weight: 700; }
+.stage-tools { position: absolute; right: max(10px, env(safe-area-inset-right, 0px)); bottom: 10px; display: flex; gap: 6px; }
+.stage-tools button {
+  width: 38px; height: 38px; border-radius: 8px; border: 1px solid rgba(255,255,255,.18);
+  background: rgba(10,12,11,.72); color: #f2f4f2; cursor: pointer; display: grid; place-items: center;
+}
+.stage-tools svg { width: 18px; height: 18px; }
+.sample-tag {
+  position: absolute; left: max(10px, env(safe-area-inset-left, 0px)); bottom: 12px; pointer-events: none;
+  font-size: 12px; color: #f2f4f2; background: rgba(10,12,11,.72); padding: 4px 9px; border-radius: 6px; border: 1px solid rgba(255,255,255,.14);
+}
+#loupe {
+  position: absolute; top: 56px; left: 12px; width: 132px; height: 132px; border-radius: 50%;
+  border: 3px solid #ffc21a; box-shadow: 0 6px 22px rgba(0,0,0,.5); pointer-events: none; background: #000;
+}
+
+.panel {
+  background: var(--surface); border-top: 1px solid var(--line); overflow-y: auto; max-height: 46vh;
+  padding-block: 12px 18px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 14px;
+}
+.seg { display: grid; grid-template-columns: 1fr 1fr; background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 3px; }
+.seg button { border: 0; background: transparent; border-radius: 7px; min-height: 36px; cursor: pointer; font-weight: 500; color: var(--muted); display: flex; align-items: center; justify-content: center; gap: 6px; }
+.seg button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 700; box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+.seg .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.seg .dot.ok { background: #2f9e5f; }
+.section { display: flex; flex-direction: column; gap: 10px; }
+.section h2 { margin: 0; font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .06em; }
+.row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.field { display: flex; flex-direction: column; gap: 4px; flex: 1 1 110px; min-width: 0; }
+.field label { font-size: 12px; color: var(--muted); }
+.field .inp { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); }
+.field input { width: 100%; min-width: 0; border: 0; background: transparent; padding: 8px 10px; font-family: var(--font-num); font-size: 15px; font-variant-numeric: tabular-nums; }
+.field .unit { padding-right: 10px; color: var(--muted); font-size: 13px; }
+select { border: 1px solid var(--line); border-radius: 8px; background: var(--surface-2); padding: 7px 10px; min-height: 36px; }
+.note { font-size: 12.5px; color: var(--muted); line-height: 1.55; margin: 0; }
+.warn { font-size: 12.5px; line-height: 1.5; background: var(--warn-bg); color: var(--warn-ink); padding: 8px 10px; border-radius: 8px; margin: 0; }
+.stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.stat { background: var(--surface-2); border: 1px solid var(--line); border-radius: 10px; padding: 9px 10px; min-width: 0; }
+.stat .k { font-size: 11.5px; color: var(--muted); }
+.stat .v { font-family: var(--font-num); font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+th, td { padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th { font-size: 11.5px; color: var(--muted); font-weight: 500; background: var(--surface-2); }
+tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+td .tag { display: inline-block; min-width: 26px; padding: 1px 6px; border-radius: 5px; background: var(--pile); color: #fff; font-weight: 700; font-size: 12px; text-align: center; }
+details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+.check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+.toast {
+  position: fixed; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  background: var(--ink); color: var(--surface); padding: 9px 14px; border-radius: 8px; font-size: 13px; z-index: 20;
+  max-width: calc(100% - 32px); text-align: center; box-shadow: 0 6px 20px rgba(0,0,0,.25);
+}
+@media (min-width: 900px) {
+  .app { grid-template-columns: minmax(0, 1fr) 390px; grid-template-rows: auto minmax(0, 1fr); }
+  header { grid-column: 1 / -1; }
+  .panel { max-height: none; border-top: 0; border-left: 1px solid var(--line); padding-left: 18px; }
+}
+@media (max-width: 560px) {
+  .brand small { display: none; }
+  header .btn .lbl-long { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="app">
+  <header>
+    <div class="brand">
+      <svg class="brand-mark" viewBox="0 0 28 28" aria-hidden="true">
+        <rect x="1" y="1" width="26" height="26" rx="6" fill="var(--accent)"/>
+        <rect x="6" y="8" width="4" height="14" rx="1" fill="var(--accent-ink)"/>
+        <rect x="18" y="8" width="4" height="14" rx="1" fill="var(--accent-ink)"/>
+        <path d="M10 6h8M10 4.5v3M18 4.5v3" stroke="var(--accent-ink)" stroke-width="1.6" fill="none"/>
+      </svg>
+      <div>
+        <h1>말뚝 간격 측정</h1>
+        <small>사진 한 장 + 기준 치수로 말뚝 사이 거리를 잽니다</small>
+      </div>
+    </div>
+    <label class="btn primary" for="camInput">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+      <span>촬영<span class="lbl-long">하기</span></span>
+    </label>
+    <label class="btn" for="fileInput">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m3 16 5-5 4 4 3-3 6 6"/></svg>
+      <span>사진<span class="lbl-long"> 불러오기</span></span>
+    </label>
+    <input id="camInput" type="file" accept="image/*" capture="environment">
+    <input id="fileInput" type="file" accept="image/*">
+  </header>
+
+  <div class="stage" id="stage">
+    <canvas id="view"></canvas>
+    <div class="hint"><span id="hint"></span></div>
+    <canvas id="loupe" width="264" height="264" hidden></canvas>
+    <div class="sample-tag" id="sampleTag">예시 사진 · 기준 1 m × 1 m, 말뚝 6개</div>
+    <div class="stage-tools">
+      <button type="button" id="zoomIn" aria-label="확대"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg></button>
+      <button type="button" id="zoomOut" aria-label="축소"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14"/></svg></button>
+      <button type="button" id="fitBtn" aria-label="화면에 맞추기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+    </div>
+  </div>
+
+  <aside class="panel">
+    <div class="seg" role="group" aria-label="작업 단계">
+      <button type="button" id="modeRef" aria-pressed="true"><span class="dot" id="dotRef"></span>1. 기준 설정</button>
+      <button type="button" id="modePile" aria-pressed="false"><span class="dot" id="dotPile"></span>2. 말뚝 찍기</button>
+    </div>
+
+    <section class="section" id="refSection">
+      <h2>기준 치수</h2>
+      <div class="row">
+        <select id="refType" aria-label="기준 방식">
+          <option value="rect">바닥 사각형 4점 (원근 보정)</option>
+          <option value="line">기준 길이 2점 (위에서 수직 촬영)</option>
+        </select>
+      </div>
+      <div class="row" id="rectFields">
+        <div class="field"><label for="refW">A→B 가로</label><div class="inp"><input id="refW" type="number" inputmode="decimal" step="0.01" min="0.01" value="1.00"><span class="unit">m</span></div></div>
+        <div class="field"><label for="refH">B→C 세로</label><div class="inp"><input id="refH" type="number" inputmode="decimal" step="0.01" min="0.01" value="1.00"><span class="unit">m</span></div></div>
+      </div>
+      <div class="row" id="lineFields" hidden>
+        <div class="field"><label for="refL">두 점 사이 실제 길이</label><div class="inp"><input id="refL" type="number" inputmode="decimal" step="0.01" min="0.01" value="1.00"><span class="unit">m</span></div></div>
+      </div>
+      <p class="note" id="refNote"></p>
+      <p class="warn" id="refWarn" hidden></p>
+      <div class="row">
+        <button type="button" class="btn small" id="resetRef">기준점 다시 찍기</button>
+        <label class="check"><input type="checkbox" id="showGrid" checked> 1 m 격자로 확인</label>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>측정 결과</h2>
+      <div class="stats">
+        <div class="stat"><div class="k">말뚝</div><div class="v" id="stCount">0개</div></div>
+        <div class="stat"><div class="k">평균 간격</div><div class="v" id="stAvg">–</div></div>
+        <div class="stat"><div class="k">연속 총길이</div><div class="v" id="stTotal">–</div></div>
+      </div>
+      <p class="warn" id="pileWarn" hidden></p>
+      <div class="row">
+        <div class="seg" style="flex:1 1 200px" role="group" aria-label="표 보기">
+          <button type="button" id="listSeq" aria-pressed="true">연속 구간</button>
+          <button type="button" id="listAll" aria-pressed="false">모든 쌍</button>
+        </div>
+        <select id="unit" aria-label="단위">
+          <option value="m">m</option>
+          <option value="mm">mm</option>
+        </select>
+      </div>
+      <div class="table-wrap"><table id="distTable"></table></div>
+      <details>
+        <summary>말뚝 좌표 보기 (A점 기준, m)</summary>
+        <div class="table-wrap" style="margin-top:8px"><table id="coordTable"></table></div>
+      </details>
+      <div class="row">
+        <button type="button" class="btn small" id="undoPile">마지막 말뚝 취소</button>
+        <button type="button" class="btn small" id="delSel" disabled>선택한 말뚝 삭제</button>
+        <button type="button" class="btn small" id="clearPiles">말뚝 모두 지우기</button>
+      </div>
+      <div class="row">
+        <button type="button" class="btn small" id="saveCsv">CSV 저장</button>
+        <button type="button" class="btn small" id="copyCsv">표 복사</button>
+        <button type="button" class="btn small" id="savePng">표시된 사진 저장</button>
+      </div>
+    </section>
+
+    <section class="section">
+      <h2>정확하게 재는 법</h2>
+      <p class="note">
+        · 말뚝은 <b>땅에 닿는 밑동</b>을 찍으세요. 머리를 찍으면 높이만큼 거리가 틀어집니다.<br>
+        · 기준 사각형은 말뚝들과 <b>같은 바닥면</b>에 두고, 측정 범위의 가운데쯤에 크게 잡을수록 정확합니다 (줄자로 잰 2 m × 2 m 등).<br>
+        · 꼭짓점은 A→B→C→D 둘레 순서로 찍습니다. 점을 길게 눌러 끌면 확대경으로 미세 조정됩니다.<br>
+        · 두 손가락으로 확대·이동할 수 있습니다. 격자가 바닥 줄눈·줄자와 맞으면 보정이 잘 된 것입니다.<br>
+        · 바닥이 크게 기울었거나 울퉁불퉁하면 오차가 커집니다. 중요한 시공 검측은 줄자·토털스테이션으로 확인하세요.
+      </p>
+    </section>
+  </aside>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+(() => {
+  "use strict";
+  const $ = (id) => document.getElementById(id);
+  const canvas = $("view"), ctx = canvas.getContext("2d");
+  const stage = $("stage"), loupe = $("loupe"), lctx = loupe.getContext("2d");
+
+  const state = {
+    img: null, imgW: 0, imgH: 0, isSample: false,
+    mode: "ref", refType: "rect",
+    refPts: [], piles: [],
+    selected: null,            // {kind:'ref'|'pile', i}
+    showGrid: true, listMode: "seq", unit: "m",
+  };
+  const view = { s: 1, tx: 0, ty: 0, touched: false };
+  let dpr = window.devicePixelRatio || 1;
+  let cw = 0, ch = 0;
+
+  // ---------- math ----------
+  function solve(A, b) {
+    const n = b.length;
+    for (let c = 0; c < n; c++) {
+      let p = c;
+      for (let r = c + 1; r < n; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+      if (Math.abs(A[p][c]) < 1e-12) return null;
+      [A[c], A[p]] = [A[p], A[c]]; [b[c], b[p]] = [b[p], b[c]];
+      for (let r = c + 1; r < n; r++) {
+        const f = A[r][c] / A[c][c];
+        for (let k = c; k < n; k++) A[r][k] -= f * A[c][k];
+        b[r] -= f * b[c];
+      }
+    }
+    const x = new Array(n).fill(0);
+    for (let r = n - 1; r >= 0; r--) {
+      let s = b[r];
+      for (let k = r + 1; k < n; k++) s -= A[r][k] * x[k];
+      x[r] = s / A[r][r];
+    }
+    return x;
+  }
+  function homography(src, dst) {
+    const A = [], b = [];
+    for (let i = 0; i < 4; i++) {
+      const [x, y] = src[i], [u, v] = dst[i];
+      A.push([x, y, 1, 0, 0, 0, -u * x, -u * y]); b.push(u);
+      A.push([0, 0, 0, x, y, 1, -v * x, -v * y]); b.push(v);
+    }
+    const h = solve(A, b);
+    return h ? [...h, 1] : null;
+  }
+  function applyH(H, x, y) {
+    const w = H[6] * x + H[7] * y + H[8];
+    return { x: (H[0] * x + H[1] * y + H[2]) / w, y: (H[3] * x + H[4] * y + H[5]) / w, w };
+  }
+  function inv3(m) {
+    const [a, b, c, d, e, f, g, h, i] = m;
+    const A = e * i - f * h, B = -(d * i - f * g), C = d * h - e * g;
+    const det = a * A + b * B + c * C;
+    if (Math.abs(det) < 1e-15) return null;
+    return [A / det, -(b * i - c * h) / det, (b * f - c * e) / det,
+            B / det, (a * i - c * g) / det, -(a * f - c * d) / det,
+            C / det, -(a * h - b * g) / det, (a * e - b * d) / det];
+  }
+  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  function isConvex(p) {
+    let sign = 0;
+    for (let i = 0; i < 4; i++) {
+      const a = p[i], b = p[(i + 1) % 4], c = p[(i + 2) % 4];
+      const z = (b.x - a.x) * (c.y - b.y) - (b.y - a.y) * (c.x - b.x);
+      if (Math.abs(z) < 1e-9) return false;
+      const s = Math.sign(z);
+      if (sign && s !== sign) return false;
+      sign = s;
+    }
+    return true;
+  }
+  const num = (id) => { const v = parseFloat($(id).value); return isFinite(v) && v > 0 ? v : null; };
+
+  // Calibration: returns {H (image->world), Hinv, ok, problem}
+  function calib() {
+    const r = state.refPts;
+    if (state.refType === "rect") {
+      if (r.length < 4) return { ok: false };
+      const W = num("refW"), Hh = num("refH");
+      if (!W || !Hh) return { ok: false, problem: "가로·세로 치수를 0보다 크게 입력하세요." };
+      if (!isConvex(r)) return { ok: false, problem: "꼭짓점이 꼬였습니다. A→B→C→D를 사각형 둘레 순서대로 다시 찍으세요." };
+      const H = homography(r.map(p => [p.x, p.y]), [[0, 0], [W, 0], [W, Hh], [0, Hh]]);
+      if (!H) return { ok: false, problem: "기준점이 한 줄에 있어 계산할 수 없습니다." };
+      // Keep w positive inside the reference quad.
+      const c = applyH(H, (r[0].x + r[2].x) / 2, (r[0].y + r[2].y) / 2);
+      const Hs = c.w < 0 ? H.map(v => -v) : H;
+      return { ok: true, H: Hs, Hinv: inv3(Hs), size: Math.max(W, Hh), center: { x: W / 2, y: Hh / 2 } };
+    } else {
+      if (r.length < 2) return { ok: false };
+      const L = num("refL");
+      if (!L) return { ok: false, problem: "기준 길이를 0보다 크게 입력하세요." };
+      const px = dist(r[0], r[1]);
+      if (px < 2) return { ok: false, problem: "두 기준점이 너무 가깝습니다." };
+      const k = L / px;
+      const H = [k, 0, -k * r[0].x, 0, k, -k * r[0].y, 0, 0, 1];
+      const mid = applyH(H, (r[0].x + r[1].x) / 2, (r[0].y + r[1].y) / 2);
+      return { ok: true, H, Hinv: inv3(H), size: L, center: mid, scaleOnly: true };
+    }
+  }
+  const refNeed = () => (state.refType === "rect" ? 4 : 2);
+
+  function measure() {
+    const cal = calib();
+    const world = cal.ok ? state.piles.map(p => {
+      const q = applyH(cal.H, p.x, p.y);
+      return q.w > 0 ? q : null;
+    }) : state.piles.map(() => null);
+    const seq = [];
+    for (let i = 1; i < state.piles.length; i++) {
+      const a = world[i - 1], b = world[i];
+      seq.push({ i: i - 1, j: i, d: a && b ? dist(a, b) : null });
+    }
+    const all = [];
+    for (let i = 0; i < state.piles.length; i++)
+      for (let j = i + 1; j < state.piles.length; j++) {
+        const a = world[i], b = world[j];
+        all.push({ i, j, d: a && b ? dist(a, b) : null });
+      }
+    return { cal, world, seq, all };
+  }
+
+  function fmt(d, withUnit = true) {
+    if (d == null || !isFinite(d)) return "–";
+    if (state.unit === "mm") return Math.round(d * 1000).toLocaleString("ko-KR") + (withUnit ? " mm" : "");
+    return d.toFixed(2) + (withUnit ? " m" : "");
+  }
+
+  // ---------- view ----------
+  function resize() {
+    const r = stage.getBoundingClientRect();
+    dpr = window.devicePixelRatio || 1;
+    cw = r.width; ch = r.height;
+    canvas.width = Math.round(cw * dpr); canvas.height = Math.round(ch * dpr);
+    if (!view.touched) fit(); else draw();
+  }
+  function fit() {
+    if (!state.img || !cw) { draw(); return; }
+    const s = Math.min(cw / state.imgW, ch / state.imgH) * 0.96;
+    view.s = s; view.tx = (cw - state.imgW * s) / 2; view.ty = (ch - state.imgH * s) / 2;
+    draw();
+  }
+  function zoomAt(f, sx, sy) {
+    const minS = Math.min(cw / state.imgW, ch / state.imgH) * 0.5, maxS = 12;
+    const ns = Math.min(maxS, Math.max(minS, view.s * f));
+    const ix = (sx - view.tx) / view.s, iy = (sy - view.ty) / view.s;
+    view.s = ns; view.tx = sx - ix * ns; view.ty = sy - iy * ns; view.touched = true;
+    draw();
+  }
+  const toScreen = (p) => ({ x: p.x * view.s + view.tx, y: p.y * view.s + view.ty });
+  const toImg = (p) => ({ x: (p.x - view.tx) / view.s, y: (p.y - view.ty) / view.s });
+
+  // ---------- drawing ----------
+  const C_REF = "#ffc21a", C_PILE = "#ff5a36", C_GRID = "rgba(120, 230, 255, .55)";
+  function label(c, text, x, y, k, bg, fg) {
+    c.font = `600 ${12.5 * k}px "IBM Plex Sans KR", system-ui, sans-serif`;
+    const w = c.measureText(text).width + 12 * k, h = 20 * k;
+    c.fillStyle = bg; c.beginPath();
+    c.roundRect ? c.roundRect(x - w / 2, y - h / 2, w, h, 5 * k) : c.rect(x - w / 2, y - h / 2, w, h);
+    c.fill();
+    c.fillStyle = fg; c.textAlign = "center"; c.textBaseline = "middle";
+    c.fillText(text, x, y + 0.5 * k);
+  }
+  function overlay(c, T, k, m, forExport) {
+    const { cal, seq } = m;
+    // grid
+    if (state.showGrid && cal.ok && !cal.scaleOnly && cal.Hinv) {
+      const pts = [{ x: 0, y: 0 }, cal.center, ...m.world.filter(Boolean)];
+      let x0 = Math.min(...pts.map(p => p.x)) - 1, x1 = Math.max(...pts.map(p => p.x)) + 1;
+      let y0 = Math.min(...pts.map(p => p.y)) - 1, y1 = Math.max(...pts.map(p => p.y)) + 1;
+      x0 = Math.floor(x0); x1 = Math.ceil(x1); y0 = Math.floor(y0); y1 = Math.ceil(y1);
+      if ((x1 - x0) + (y1 - y0) < 120) {
+        c.save();
+        const o = T({ x: 0, y: 0 }), e = T({ x: state.imgW, y: state.imgH });
+        c.beginPath(); c.rect(o.x, o.y, e.x - o.x, e.y - o.y); c.clip();
+        c.strokeStyle = C_GRID; c.lineWidth = 1 * k;
+        const seg = (ax, ay, bx, by) => {
+          const N = 24; let prev = null;
+          c.beginPath();
+          for (let s = 0; s <= N; s++) {
+            const wx = ax + (bx - ax) * s / N, wy = ay + (by - ay) * s / N;
+            const q = applyH(cal.Hinv, wx, wy);
+            if (q.w <= 0) { prev = null; continue; }
+            const p = T(q);
+            if (prev) c.lineTo(p.x, p.y); else c.moveTo(p.x, p.y);
+            prev = p;
+          }
+          c.stroke();
+        };
+        for (let x = x0; x <= x1; x++) seg(x, y0, x, y1);
+        for (let y = y0; y <= y1; y++) seg(x0, y, x1, y);
+        c.restore();
+      }
+    }
+    // reference
+    const R = state.refPts.map(T);
+    if (R.length) {
+      c.lineJoin = "round";
+      c.strokeStyle = "rgba(0,0,0,.55)"; c.lineWidth = 5 * k;
+      const path = () => { c.beginPath(); R.forEach((p, i) => i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)); if (R.length === 4) c.closePath(); };
+      path(); c.stroke();
+      c.strokeStyle = C_REF; c.lineWidth = 2.5 * k; path(); c.stroke();
+      if (state.refType === "rect" && R.length >= 2) {
+        const W = num("refW"), Hh = num("refH");
+        label(c, `가로 ${W ? W.toFixed(2) : "?"} m`, (R[0].x + R[1].x) / 2, (R[0].y + R[1].y) / 2, k, C_REF, "#1c2220");
+        if (R.length >= 3) label(c, `세로 ${Hh ? Hh.toFixed(2) : "?"} m`, (R[1].x + R[2].x) / 2, (R[1].y + R[2].y) / 2, k, C_REF, "#1c2220");
+      } else if (state.refType === "line" && R.length === 2) {
+        const L = num("refL");
+        label(c, `기준 ${L ? L.toFixed(2) : "?"} m`, (R[0].x + R[1].x) / 2, (R[0].y + R[1].y) / 2 - 16 * k, k, C_REF, "#1c2220");
+      }
+      R.forEach((p, i) => {
+        const sel = !forExport && state.selected && state.selected.kind === "ref" && state.selected.i === i;
+        c.beginPath(); c.arc(p.x, p.y, (sel ? 9 : 6.5) * k, 0, Math.PI * 2);
+        c.fillStyle = "rgba(0,0,0,.35)"; c.fill();
+        c.lineWidth = 2.5 * k; c.strokeStyle = C_REF; c.stroke();
+        c.beginPath(); c.arc(p.x, p.y, 1.6 * k, 0, Math.PI * 2); c.fillStyle = C_REF; c.fill();
+        c.font = `700 ${13 * k}px "IBM Plex Sans KR", system-ui, sans-serif`;
+        c.textAlign = "left"; c.textBaseline = "bottom";
+        c.lineWidth = 3 * k; c.strokeStyle = "rgba(0,0,0,.7)";
+        const t = "ABCD"[i]; c.strokeText(t, p.x + 8 * k, p.y - 6 * k);
+        c.fillStyle = C_REF; c.fillText(t, p.x + 8 * k, p.y - 6 * k);
+      });
+    }
+    // pile links (consecutive)
+    const P = state.piles.map(T);
+    for (const s of seq) {
+      const a = P[s.i], b = P[s.j];
+      c.setLineDash([7 * k, 5 * k]);
+      c.strokeStyle = "rgba(0,0,0,.55)"; c.lineWidth = 4 * k;
+      c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke();
+      c.strokeStyle = "#ffffff"; c.lineWidth = 2 * k; c.stroke();
+      c.setLineDash([]);
+    }
+    for (const s of seq) {
+      const a = P[s.i], b = P[s.j];
+      if (s.d != null) label(c, fmt(s.d), (a.x + b.x) / 2, (a.y + b.y) / 2, k, "rgba(255,255,255,.95)", "#1c2220");
+    }
+    P.forEach((p, i) => {
+      const sel = !forExport && state.selected && state.selected.kind === "pile" && state.selected.i === i;
+      c.beginPath(); c.arc(p.x, p.y, (sel ? 11 : 8) * k, 0, Math.PI * 2);
+      c.fillStyle = "rgba(0,0,0,.3)"; c.fill();
+      c.lineWidth = (sel ? 3.5 : 2.5) * k; c.strokeStyle = sel ? "#ffffff" : C_PILE; c.stroke();
+      c.strokeStyle = C_PILE; c.lineWidth = 1.5 * k;
+      c.beginPath(); c.moveTo(p.x - 13 * k, p.y); c.lineTo(p.x + 13 * k, p.y); c.moveTo(p.x, p.y - 13 * k); c.lineTo(p.x, p.y + 13 * k); c.stroke();
+      label(c, "P" + (i + 1), p.x, p.y - 24 * k, k, C_PILE, "#ffffff");
+    });
+  }
+  function draw() {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!state.img) return;
+    ctx.setTransform(dpr * view.s, 0, 0, dpr * view.s, dpr * view.tx, dpr * view.ty);
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(state.img, 0, 0);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    overlay(ctx, toScreen, 1, measure(), false);
+  }
+
+  function drawLoupe(ip, screenPt) {
+    const size = loupe.width, zoom = Math.max(view.s * 3, 0.6) * (size / 132);
+    const half = size / 2 / zoom;
+    lctx.setTransform(1, 0, 0, 1, 0, 0);
+    lctx.fillStyle = "#000"; lctx.fillRect(0, 0, size, size);
+    lctx.imageSmoothingEnabled = true;
+    lctx.drawImage(state.img, ip.x - half, ip.y - half, half * 2, half * 2, 0, 0, size, size);
+    const k = size / 132;
+    lctx.strokeStyle = "rgba(0,0,0,.6)"; lctx.lineWidth = 4 * k;
+    lctx.beginPath(); lctx.moveTo(size / 2, 14 * k); lctx.lineTo(size / 2, size - 14 * k); lctx.moveTo(14 * k, size / 2); lctx.lineTo(size - 14 * k, size / 2); lctx.stroke();
+    lctx.strokeStyle = "#ffc21a"; lctx.lineWidth = 1.6 * k; lctx.stroke();
+    loupe.hidden = false;
+    const left = screenPt.x < 170 && screenPt.y < 210;
+    loupe.style.left = left ? "" : "12px";
+    loupe.style.right = left ? "12px" : "";
+  }
+
+  // ---------- UI text ----------
+  function updateUI() {
+    const m = measure();
+    const need = refNeed(), have = state.refPts.length;
+    $("modeRef").setAttribute("aria-pressed", state.mode === "ref");
+    $("modePile").setAttribute("aria-pressed", state.mode === "pile");
+    $("dotRef").classList.toggle("ok", m.cal.ok);
+    $("dotPile").classList.toggle("ok", state.piles.length >= 2);
+    $("rectFields").hidden = state.refType !== "rect";
+    $("lineFields").hidden = state.refType !== "line";
+    $("sampleTag").hidden = !state.isSample;
+
+    $("refNote").textContent = state.refType === "rect"
+      ? `바닥에 놓인 직사각형(줄자로 잰 사각형, 거푸집·보도블록 등)의 네 꼭짓점을 찍습니다. 원근이 보정되어 비스듬히 찍은 사진도 잴 수 있습니다. (${have}/4)`
+      : `길이를 아는 두 점을 찍습니다. 드론·높은 곳에서 바닥을 수직으로 내려다본 사진에만 정확합니다. (${have}/2)`;
+    $("refWarn").hidden = !m.cal.problem;
+    $("refWarn").textContent = m.cal.problem || "";
+
+    // hint
+    const hint = $("hint");
+    hint.replaceChildren();
+    const b = (t) => { const e = document.createElement("b"); e.textContent = t; return e; };
+    if (!state.img) hint.append("사진을 촬영하거나 불러오세요");
+    else if (state.mode === "ref" && have < need) {
+      if (state.refType === "rect") hint.append("기준 사각형 꼭짓점 ", b("ABCD"[have]), " 를 찍으세요 · 둘레 순서대로");
+      else hint.append("기준 길이의 ", b(have === 0 ? "첫 번째" : "두 번째"), " 끝점을 찍으세요");
+    } else if (state.mode === "ref") hint.append("점을 끌어 조정하거나 ", b("2. 말뚝 찍기"), " 로 넘어가세요");
+    else hint.append("말뚝 밑동(땅과 닿는 곳)을 찍으세요 · ", b("P" + (state.piles.length + 1)));
+
+    // stats
+    const ds = m.seq.map(s => s.d).filter(d => d != null);
+    $("stCount").textContent = state.piles.length + "개";
+    $("stAvg").textContent = ds.length ? fmt(ds.reduce((a, b) => a + b, 0) / ds.length) : "–";
+    $("stTotal").textContent = ds.length ? fmt(ds.reduce((a, b) => a + b, 0)) : "–";
+
+    // warnings
+    const warn = $("pileWarn");
+    let wtext = "";
+    if (state.piles.length && !m.cal.ok) wtext = "기준 설정이 끝나야 거리가 계산됩니다.";
+    else if (m.cal.ok) {
+      const far = m.world.map((w, i) => (!w ? i : (dist(w, m.cal.center) > 5 * m.cal.size ? i : -1))).filter(i => i >= 0);
+      if (far.length) wtext = `${far.map(i => "P" + (i + 1)).join(", ")}: 기준에서 너무 멀어 오차가 클 수 있습니다. 더 큰 기준 사각형을 쓰거나 가까이서 다시 찍으세요.`;
+    }
+    warn.hidden = !wtext; warn.textContent = wtext;
+
+    // distance table
+    const table = $("distTable");
+    table.replaceChildren();
+    const rows = state.listMode === "seq" ? m.seq : m.all;
+    const thead = table.createTHead().insertRow();
+    for (const [t, cls] of [["구간", ""], ["거리", "num"]]) { const th = document.createElement("th"); th.textContent = t; if (cls) th.className = cls; thead.append(th); }
+    const tb = table.createTBody();
+    if (!rows.length) {
+      const td = tb.insertRow().insertCell(); td.colSpan = 2; td.className = "note";
+      td.textContent = "말뚝을 2개 이상 찍으면 거리가 표시됩니다.";
+    }
+    for (const r of rows) {
+      const tr = tb.insertRow();
+      const c1 = tr.insertCell();
+      const t1 = document.createElement("span"); t1.className = "tag"; t1.textContent = "P" + (r.i + 1);
+      const t2 = document.createElement("span"); t2.className = "tag"; t2.textContent = "P" + (r.j + 1);
+      c1.append(t1, state.listMode === "seq" ? " → " : " – ", t2);
+      const c2 = tr.insertCell(); c2.className = "num"; c2.textContent = fmt(r.d);
+    }
+    // coordinates
+    const ct = $("coordTable"); ct.replaceChildren();
+    const h2 = ct.createTHead().insertRow();
+    for (const [t, cls] of [["말뚝", ""], ["X (A→B)", "num"], ["Y (A→D)", "num"]]) { const th = document.createElement("th"); th.textContent = t; if (cls) th.className = cls; h2.append(th); }
+    const cb = ct.createTBody();
+    m.world.forEach((w, i) => {
+      const tr = cb.insertRow();
+      tr.insertCell().textContent = "P" + (i + 1);
+      const x = tr.insertCell(), y = tr.insertCell(); x.className = y.className = "num";
+      x.textContent = w ? w.x.toFixed(3) : "–"; y.textContent = w ? w.y.toFixed(3) : "–";
+    });
+
+    $("delSel").disabled = !(state.selected && state.selected.kind === "pile");
+    $("undoPile").disabled = !state.piles.length;
+    $("clearPiles").disabled = !state.piles.length;
+    $("listSeq").setAttribute("aria-pressed", state.listMode === "seq");
+    $("listAll").setAttribute("aria-pressed", state.listMode === "all");
+    draw();
+  }
+
+  let toastTimer;
+  function toast(msg) {
+    const t = $("toast"); t.textContent = msg; t.hidden = false;
+    clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 2600);
+  }
+
+  // ---------- pointer interaction ----------
+  const pointers = new Map();
+  let g = null;
+  const local = (e) => { const r = canvas.getBoundingClientRect(); return { x: e.clientX - r.left, y: e.clientY - r.top }; };
+  function hitTest(sp) {
+    let best = null, bd = 24;
+    const test = (arr, kind) => arr.forEach((p, i) => { const d = dist(toScreen(p), sp); if (d < bd) { bd = d; best = { kind, i }; } });
+    test(state.refPts, "ref"); test(state.piles, "pile");
+    return best;
+  }
+  const ptOf = (sel) => (sel.kind === "ref" ? state.refPts : state.piles)[sel.i];
+  const clampImg = (p) => ({ x: Math.min(state.imgW, Math.max(0, p.x)), y: Math.min(state.imgH, Math.max(0, p.y)) });
+
+  canvas.addEventListener("pointerdown", (e) => {
+    if (!state.img) return;
+    canvas.setPointerCapture(e.pointerId);
+    const p = local(e);
+    pointers.set(e.pointerId, p);
+    if (pointers.size === 1) {
+      const hit = hitTest(p);
+      if (hit) {
+        state.selected = hit;
+        const ip = ptOf(hit), im = toImg(p);
+        g = { type: "drag", hit, off: { x: ip.x - im.x, y: ip.y - im.y }, start: p, moved: false };
+        updateUI();
+      } else g = { type: "pending", start: p, last: p };
+    } else if (pointers.size === 2) {
+      loupe.hidden = true;
+      const [a, b] = [...pointers.values()];
+      g = { type: "pinch", d0: dist(a, b) || 1, s0: view.s, tx0: view.tx, ty0: view.ty, m0: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
+    }
+  });
+  canvas.addEventListener("pointermove", (e) => {
+    if (!pointers.has(e.pointerId) || !g) return;
+    const p = local(e);
+    pointers.set(e.pointerId, p);
+    if (g.type === "pinch" && pointers.size >= 2) {
+      const [a, b] = [...pointers.values()];
+      const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const minS = Math.min(cw / state.imgW, ch / state.imgH) * 0.5;
+      const ns = Math.min(12, Math.max(minS, g.s0 * dist(a, b) / g.d0));
+      const ix = (g.m0.x - g.tx0) / g.s0, iy = (g.m0.y - g.ty0) / g.s0;
+      view.s = ns; view.tx = mid.x - ix * ns; view.ty = mid.y - iy * ns; view.touched = true;
+      draw();
+    } else if (g.type === "pending") {
+      if (dist(p, g.start) > 7) { g = { type: "pan", last: p }; }
+    } else if (g.type === "pan") {
+      view.tx += p.x - g.last.x; view.ty += p.y - g.last.y; g.last = p; view.touched = true; draw();
+    } else if (g.type === "drag") {
+      if (dist(p, g.start) > 3) g.moved = true;
+      if (!g.moved) return;
+      const im = toImg(p);
+      const np = clampImg({ x: im.x + g.off.x, y: im.y + g.off.y });
+      const arr = g.hit.kind === "ref" ? state.refPts : state.piles;
+      arr[g.hit.i] = np;
+      drawLoupe(np, p);
+      updateUI();
+    }
+  });
+  function endPointer(e) {
+    if (!pointers.has(e.pointerId)) return;
+    pointers.delete(e.pointerId);
+    if (g && g.type === "pending" && pointers.size === 0) tap(g.start);
+    if (g && g.type === "drag") loupe.hidden = true;
+    if (pointers.size === 1 && g && g.type === "pinch") g = { type: "pan", last: [...pointers.values()][0] };
+    else if (pointers.size === 0) g = null;
+  }
+  canvas.addEventListener("pointerup", endPointer);
+  canvas.addEventListener("pointercancel", endPointer);
+  canvas.addEventListener("wheel", (e) => {
+    if (!state.img) return;
+    e.preventDefault();
+    const p = local(e);
+    zoomAt(Math.exp(-e.deltaY * 0.0015), p.x, p.y);
+  }, { passive: false });
+
+  function tap(sp) {
+    const ip = toImg(sp);
+    if (ip.x < 0 || ip.y < 0 || ip.x > state.imgW || ip.y > state.imgH) { state.selected = null; updateUI(); return; }
+    if (state.mode === "ref") {
+      if (state.refPts.length < refNeed()) {
+        state.refPts.push(ip);
+        state.selected = { kind: "ref", i: state.refPts.length - 1 };
+        if (state.refPts.length === refNeed()) {
+          const cal = calib();
+          if (cal.ok) { state.mode = "pile"; state.selected = null; toast("기준 설정 완료 · 이제 말뚝 밑동을 찍으세요"); }
+        }
+      } else { state.selected = null; toast("기준점은 끌어서 옮기거나 ‘기준점 다시 찍기’를 누르세요"); }
+    } else {
+      state.piles.push(ip);
+      state.selected = { kind: "pile", i: state.piles.length - 1 };
+    }
+    updateUI();
+  }
+
+  // ---------- controls ----------
+  $("modeRef").onclick = () => { state.mode = "ref"; updateUI(); };
+  $("modePile").onclick = () => { state.mode = "pile"; updateUI(); };
+  $("refType").onchange = (e) => { state.refType = e.target.value; state.refPts = []; state.mode = "ref"; state.selected = null; updateUI(); };
+  for (const id of ["refW", "refH", "refL"]) $(id).addEventListener("input", updateUI);
+  $("resetRef").onclick = () => { state.refPts = []; state.mode = "ref"; state.selected = null; updateUI(); };
+  $("showGrid").onchange = (e) => { state.showGrid = e.target.checked; updateUI(); };
+  $("listSeq").onclick = () => { state.listMode = "seq"; updateUI(); };
+  $("listAll").onclick = () => { state.listMode = "all"; updateUI(); };
+  $("unit").onchange = (e) => { state.unit = e.target.value; updateUI(); };
+  $("undoPile").onclick = () => { state.piles.pop(); state.selected = null; updateUI(); };
+  $("clearPiles").onclick = () => { state.piles = []; state.selected = null; updateUI(); };
+  $("delSel").onclick = () => {
+    if (state.selected && state.selected.kind === "pile") { state.piles.splice(state.selected.i, 1); state.selected = null; updateUI(); }
+  };
+  $("zoomIn").onclick = () => state.img && zoomAt(1.4, cw / 2, ch / 2);
+  $("zoomOut").onclick = () => state.img && zoomAt(1 / 1.4, cw / 2, ch / 2);
+  $("fitBtn").onclick = () => { view.touched = false; fit(); };
+  document.addEventListener("keydown", (e) => {
+    if ((e.key === "Delete" || e.key === "Backspace") && e.target === document.body && state.selected?.kind === "pile") $("delSel").click();
+  });
+
+  function loadFile(file) {
+    if (!file) return;
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      setImage(img, false);
+      toast(state.refType === "rect" ? "바닥 기준 사각형의 꼭짓점 A부터 찍으세요" : "기준 길이의 양 끝을 찍으세요");
+    };
+    img.onerror = () => toast("이 사진을 열 수 없습니다. JPG나 PNG로 다시 시도하세요.");
+    img.src = url;
+  }
+  function setImage(img, sample) {
+    state.img = img; state.imgW = img.naturalWidth; state.imgH = img.naturalHeight; state.isSample = sample;
+    state.refPts = []; state.piles = []; state.selected = null; state.mode = "ref";
+    view.touched = false; fit(); updateUI();
+  }
+  $("camInput").onchange = (e) => { loadFile(e.target.files[0]); e.target.value = ""; };
+  $("fileInput").onchange = (e) => { loadFile(e.target.files[0]); e.target.value = ""; };
+
+  // ---------- export ----------
+  function csvText() {
+    const m = measure();
+    const lines = ["구분,시작,끝,거리(m)"];
+    m.seq.forEach(s => lines.push(`연속,P${s.i + 1},P${s.j + 1},${s.d != null ? s.d.toFixed(3) : ""}`));
+    m.all.forEach(s => lines.push(`쌍,P${s.i + 1},P${s.j + 1},${s.d != null ? s.d.toFixed(3) : ""}`));
+    lines.push("", "말뚝,X(m),Y(m)");
+    m.world.forEach((w, i) => lines.push(`P${i + 1},${w ? w.x.toFixed(3) : ""},${w ? w.y.toFixed(3) : ""}`));
+    lines.push("", state.refType === "rect"
+      ? `기준,사각형,${num("refW") || ""},${num("refH") || ""}`
+      : `기준,길이,${num("refL") || ""}`);
+    return lines.join("\n");
+  }
+  const stamp = () => { const d = new Date(), p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`; };
+  let dlPromise = null;
+  function getDownloads() {
+    if (!dlPromise) dlPromise = (window.claude && typeof window.claude.use === "function")
+      ? window.claude.use("downloads").catch(() => null) : Promise.resolve(undefined);
+    return dlPromise;
+  }
+  getDownloads();
+  async function saveFile(filename, data) {
+    const dl = await getDownloads();
+    if (dl === undefined) {           // standalone page outside Claude
+      const blob = data instanceof Blob ? data : new Blob([data], { type: "text/csv" });
+      const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = filename;
+      document.body.append(a); a.click(); a.remove();
+      return;
+    }
+    if (!dl) { toast("이 화면에서는 파일을 저장할 수 없습니다. ‘표 복사’를 쓰세요."); return; }
+    try { await dl.save({ filename, data }); toast("저장했습니다"); }
+    catch (err) {
+      if (err && err.code === "declined") return;
+      if (err && err.code === "host_unavailable") toast("이 앱에서는 저장할 수 없습니다. 브라우저에서 열어 저장하세요.");
+      else toast("저장하지 못했습니다. 잠시 후 다시 시도하세요.");
+    }
+  }
+  $("saveCsv").onclick = () => {
+    if (!state.piles.length) { toast("먼저 말뚝을 찍으세요"); return; }
+    saveFile(`말뚝간격-${stamp()}.csv`, "﻿" + csvText());
+  };
+  $("copyCsv").onclick = () => {
+    const text = csvText().replace(/,/g, "\t");
+    const fallback = () => {
+      const ta = document.createElement("textarea"); ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.append(ta); ta.select();
+      try { document.execCommand("copy"); toast("표를 복사했습니다 · 엑셀에 붙여넣기"); } catch { toast("복사하지 못했습니다"); }
+      ta.remove();
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText)
+      navigator.clipboard.writeText(text).then(() => toast("표를 복사했습니다 · 엑셀에 붙여넣기"), fallback);
+    else fallback();
+  };
+  $("savePng").onclick = () => {
+    if (!state.img) return;
+    const maxSide = 4000, sc = Math.min(1, maxSide / Math.max(state.imgW, state.imgH));
+    const out = document.createElement("canvas");
+    out.width = Math.round(state.imgW * sc); out.height = Math.round(state.imgH * sc);
+    const c = out.getContext("2d");
+    c.drawImage(state.img, 0, 0, out.width, out.height);
+    const k = Math.max(out.width, out.height) / 900;
+    overlay(c, (p) => ({ x: p.x * sc, y: p.y * sc }), k, measure(), true);
+    out.toBlob((blob) => blob ? saveFile(`말뚝간격-${stamp()}.png`, blob) : toast("사진을 만들지 못했습니다"), "image/png");
+  };
+
+  // ---------- sample scene (synthetic photo with known geometry) ----------
+  function makeSample() {
+    const W = 1600, Hh = 1200, F = 1050, h = 1.6, pitch = 33 * Math.PI / 180, camX = 0.1;
+    const sp = Math.sin(pitch), cp = Math.cos(pitch);
+    const proj = (X, Y, Z = 0) => {
+      const vx = X - camX, vy = Y, vz = Z - h;
+      const xc = vx, yc = vy * sp + vz * cp, zc = vy * cp - vz * sp;
+      return { x: W / 2 + F * xc / zc, y: Hh / 2 - F * yc / zc };
+    };
+    const cv = document.createElement("canvas"); cv.width = W; cv.height = Hh;
+    const c = cv.getContext("2d");
+    // ground: compacted soil
+    const gr = c.createLinearGradient(0, 0, 0, Hh);
+    gr.addColorStop(0, "#8a7a63"); gr.addColorStop(1, "#6d5d47");
+    c.fillStyle = gr; c.fillRect(0, 0, W, Hh);
+    // speckle texture, denser far away
+    let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+    for (let i = 0; i < 9000; i++) {
+      const X = (rnd() - 0.5) * 16, Y = 0.6 + rnd() * 20;
+      const p = proj(X, Y); if (p.x < 0 || p.x > W || p.y < 0 || p.y > Hh) continue;
+      const r = Math.max(0.6, 9 / (Y + 1) * rnd());
+      c.fillStyle = rnd() > 0.5 ? "rgba(60,48,34,.35)" : "rgba(170,154,128,.35)";
+      c.beginPath(); c.ellipse(p.x, p.y, r * 1.4, r * 0.8, 0, 0, Math.PI * 2); c.fill();
+    }
+    // tyre ruts
+    c.strokeStyle = "rgba(55,44,30,.25)"; c.lineWidth = 18;
+    for (const X of [-3.2, -2.4]) { const a = proj(X, 0.7), b = proj(X + 1.5, 22); c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke(); }
+    // reference square on ground: yellow tape 1 m x 1 m
+    const ref = [[-0.5, 3.6], [0.5, 3.6], [0.5, 4.6], [-0.5, 4.6]];
+    const tape = (ax, ay, bx, by) => {
+      const w = 0.025, N = 10;
+      c.fillStyle = "#f3c316";
+      const dx = bx - ax, dy = by - ay, L = Math.hypot(dx, dy), nx = -dy / L * w, ny = dx / L * w;
+      const q = [proj(ax + nx, ay + ny), proj(bx + nx, by + ny), proj(bx - nx, by - ny), proj(ax - nx, ay - ny)];
+      c.beginPath(); q.forEach((p, i) => i ? c.lineTo(p.x, p.y) : c.moveTo(p.x, p.y)); c.closePath(); c.fill();
+    };
+    for (let i = 0; i < 4; i++) { const a = ref[i], b = ref[(i + 1) % 4]; tape(a[0], a[1], b[0], b[1]); }
+    // piles (steel pipe piles, 0.3 m dia, 1.1 m stick-up)
+    const piles = [[-1.25, 2.5], [1.27, 2.48], [1.24, 4.52], [-1.22, 4.5], [-1.26, 6.47], [1.25, 6.55]];
+    const r = 0.15, top = 0.55;
+    [...piles].sort((a, b) => b[1] - a[1]).forEach(([X, Y]) => {
+      // shadow
+      const s0 = proj(X + 0.05, Y + 0.05), s1 = proj(X + 0.45, Y + 0.3);
+      c.strokeStyle = "rgba(30,22,14,.35)"; c.lineWidth = Math.abs(proj(X + r, Y).x - proj(X - r, Y).x) * 0.9;
+      c.lineCap = "round"; c.beginPath(); c.moveTo(s0.x, s0.y); c.lineTo(s1.x, s1.y); c.stroke();
+      const bl = proj(X - r, Y), br = proj(X + r, Y), tl = proj(X - r, Y, top), tr = proj(X + r, Y, top);
+      const bc = proj(X, Y), tc = proj(X, Y, top);
+      const rx = (br.x - bl.x) / 2, ryb = Math.abs(proj(X, Y + r).y - proj(X, Y - r).y) / 2, ryt = Math.abs(proj(X, Y + r, top).y - proj(X, Y - r, top).y) / 2;
+      const body = c.createLinearGradient(bl.x, 0, br.x, 0);
+      body.addColorStop(0, "#4b4f52"); body.addColorStop(0.35, "#9aa1a5"); body.addColorStop(0.6, "#6c7377"); body.addColorStop(1, "#353a3d");
+      c.fillStyle = body;
+      c.beginPath(); c.moveTo(tl.x, tc.y); c.lineTo(bl.x, bc.y);
+      c.ellipse(bc.x, bc.y, rx, ryb, 0, Math.PI, 0, true);
+      c.lineTo(tr.x, tc.y); c.closePath(); c.fill();
+      c.fillStyle = "#2b2f31"; c.beginPath(); c.ellipse(tc.x, tc.y, (tr.x - tl.x) / 2, ryt, 0, 0, Math.PI * 2); c.fill();
+      c.strokeStyle = "#8d9498"; c.lineWidth = 2; c.stroke();
+      // red marking ring
+      const m1 = proj(X, Y, 0.45);
+      c.fillStyle = "rgba(200,40,30,.85)"; c.fillRect(tl.x, m1.y - 6, tr.x - tl.x, 9);
+    });
+    const img = new Image();
+    img.onload = () => {
+      setImage(img, true);
+      state.refPts = ref.map(([X, Y]) => proj(X, Y));
+      state.piles = piles.map(([X, Y]) => proj(X, Y));
+      state.mode = "pile";
+      updateUI();
+    };
+    img.src = cv.toDataURL("image/jpeg", 0.9);
+  }
+
+  new ResizeObserver(resize).observe(stage);
+  resize();
+  updateUI();
+  makeSample();
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw);
+})();
+</script>
+
+</body></html>
