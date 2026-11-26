@@ -58,7 +58,7 @@ export function fmt(t, decimals = 1) {
 export function debounce(fn, ms) {
   let timer;
   const d = (...args) => { clearTimeout(timer); timer = setTimeout(() => fn(...args), ms); };
-  d.flush = (...args) => { clearTimeout(timer); fn(...args); };
+  d.flush = (...args) => { clearTimeout(timer); return fn(...args); };
   return d;
 }
 

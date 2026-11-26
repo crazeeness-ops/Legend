@@ -80,7 +80,8 @@ class Store:
                 if owner is not None and p.get("owner") != owner:
                     continue
                 out.append({k: p.get(k) for k in ("id", "name", "status", "error", "duration", "created_at", "source")}
-                           | {"clip_count": len(p.get("clips", []))})
+                           | {"clip_count": len(p.get("clips", [])), "kind": p.get("kind", "video"),
+                              "photo_count": len(p.get("photos", []))})
         return sorted(out, key=lambda p: p["created_at"] or 0, reverse=True)
 
     def owner_of(self, pid: str) -> str | None:
@@ -105,6 +106,23 @@ class Store:
             "video": dest.name, "transcript": None,
             "status": "created", "error": None, "job_id": None, "config": config or {},
             "duration": None, "language": None, "clips": [],
+            "created_at": time.time(), "updated_at": time.time(),
+        }
+        self.save(project)
+        return project
+
+    def create_photo(self, name: str, owner: str, template: str) -> dict:
+        """A photo-short project: photos/ + a script instead of a source video."""
+        pid = uuid.uuid4().hex[:10]
+        d = self.root / "projects" / pid
+        for sub in ("photos", "renders", "cache", "audio"):
+            (d / sub).mkdir(parents=True)
+        project = {
+            "id": pid, "name": name, "owner": owner, "kind": "photo", "source": {"type": "photo", "template": template},
+            "status": "created", "error": None, "job_id": None, "photos": [], "script": None,
+            "settings": {"template": template, "fields": {}, "notes": "", "preset": None, "voice": False, "voice_id": None,
+                         "music": None, "music_volume": 0.3, "show_title": False},
+            "render": None, "publish": None, "clips": [], "duration": None,
             "created_at": time.time(), "updated_at": time.time(),
         }
         self.save(project)

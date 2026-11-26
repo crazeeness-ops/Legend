@@ -165,6 +165,38 @@ python -m webapp import video.mp4 --transcript t.json --selector heuristic   # �
 빌드 없는 ES 모듈 프론트엔드(`webapp/static/`). 운영 단계에서는 설계 문서대로 Postgres·S3·Redis 큐·GPU 워커, Next.js로 옮기면 되도록
 API를 분리해 두었습니다. 인증·결제는 아직 없으므로 **로컬/내부망에서만** 실행하세요.
 
+## 📸 사진으로 숏츠 만들기
+
+영상이 없어도 사진 여러 장만으로 세로 숏츠를 만들 수 있어요. 홈 화면에서 **📸 사진으로** 탭을 누르세요.
+
+1. **어떤 숏츠인지 고르기** — 맛집·카페 / 상품 홍보 / 여행·일상 / 매물·인테리어 / 자유 주제.
+   고른 종류에 맞춰 입력 칸(가게 이름, 가격, 위치 등)과 어울리는 자막 스타일이 자동으로 정해져요.
+2. **사진 올리기** — 최대 20장. JPG·PNG·WEBP, 아이폰 HEIC도 됩니다(`requirements-optional.txt` 설치 시).
+3. **대본 자동 작성** — `ANTHROPIC_API_KEY`가 있으면 Claude가 사진을 직접 보고 순서와 장면별 문구를 써 줘요.
+   키가 없으면 종류별 기본 문구로 채워집니다.
+4. **편집기에서 다듬기** — 장면 순서, 문구, 길이(초) 수정, 자막 스타일 변경, 미리보기.
+5. **🎬 영상 만들기** — 천천히 확대/이동하는 움직임 + 장면 전환 + 자막 + 마지막 안내 카드(가게 정보 등).
+   배경음악 파일을 올리면 함께 섞이고, AI 목소리를 켜면 문구를 읽어 줘요(목소리에 맞춰 장면 길이가 늘어남).
+6. 다운로드하거나 연결된 YouTube 채널에 바로 올리기.
+
+사진 프로젝트 하나당 사용량 1분이 차감돼요.
+
+### AI 목소리 설정 (선택)
+
+둘 중 하나의 키를 설정하면 편집기에 "문구를 목소리로 읽어 주기"가 켜져요.
+
+```bash
+# 네이버 클로바 보이스 (한국어 자연스러움 추천)
+export NCP_CLOVA_KEY_ID=...
+export NCP_CLOVA_KEY=...
+
+# 또는 ElevenLabs
+export ELEVENLABS_API_KEY=...
+export ELEVENLABS_VOICE_ID=...     # 선택
+
+export LEGEND_TTS_PROVIDER=clova   # 둘 다 있을 때 고르기 (clova | elevenlabs)
+```
+
 ## 계정 · 내 채널 · 클리핑 마켓
 
 **계정**: 이메일+비밀번호 가입(크리에이터/클리퍼 선택), 쿠키 세션(HttpOnly, SameSite=Lax), 쓰기 요청은 CSRF 헤더 필수.

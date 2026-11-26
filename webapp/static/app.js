@@ -4,6 +4,7 @@ import { ytChip, publishTab, openBulk, PUBLISH_BADGE } from "./publish.js";
 import { channelView, marketView, campaignView, listingView } from "./market.js";
 import { sellTab } from "./sell.js";
 import { requestBillingAuth } from "./pay.js";
+import { photoCatalog, photoCreateForm, photoView } from "./photo.js";
 
 const app = document.getElementById("app");
 let cleanup = () => {};
@@ -170,6 +171,7 @@ async function route() {
     else if (parts[0] === "market") await marketView(app, topbar, query || "shop");
     else if (parts[0] === "shop" && parts[1]) await listingView(app, topbar, parts[1]);
     else if (parts[0] === "pay-result") payResultView(query);
+    else if (parts[0] === "photo" && parts[1]) { await loadPresets(); const stop = await photoView(app, topbar, parts[1], PRESETS); if (stop) cleanup = stop; }
     else await homeView();
   } catch (e) {
     app.replaceChildren(topbar(), h("div", { class: "center-msg" }, h("h2", {}, "문제가 발생했어요"), h("p", { class: "muted" }, e.message),
@@ -179,8 +181,8 @@ async function route() {
 window.addEventListener("hashchange", route);
 
 // ------------------------------------------------------------------ home
-async function homeView() {
-  const projects = await api("/api/projects");
+async function homeView(mode = sessionStorage.getItem("legend-create") || "video") {
+  const [projects, photoCat] = await Promise.all([api("/api/projects"), photoCatalog().catch(() => null)]);
   const state = { video: null, transcript: null };
   const videoInput = h("input", { type: "file", accept: "video/*", style: { display: "none" } });
   const trInput = h("input", { type: "file", accept: ".json,application/json", style: { display: "none" } });
@@ -227,21 +229,27 @@ async function homeView() {
   };
 
   const list = projects.length ? h("div", { class: "projects" }, projects.map(p =>
-    h("a", { class: "project-item", href: `#/p/${p.id}` },
+    h("a", { class: "project-item", href: p.kind === "photo" ? `#/photo/${p.id}` : `#/p/${p.id}` },
       h("div", { class: "grow" }, h("div", { style: { fontWeight: 700 } }, p.name,
-        p.source?.type === "campaign" ? h("span", { class: "badge src" }, "캠페인") : p.source?.type === "own_channel" ? h("span", { class: "badge src" }, "내 채널") : null),
+        p.kind === "photo" ? h("span", { class: "badge src" }, "📸 사진")
+          : p.source?.type === "campaign" ? h("span", { class: "badge src" }, "캠페인") : p.source?.type === "own_channel" ? h("span", { class: "badge src" }, "내 채널") : null),
         h("div", { class: "muted", style: { fontSize: "12px", marginTop: "3px" } },
-          new Date(p.created_at * 1000).toLocaleString("ko-KR"), p.duration ? ` · 원본 ${fmt(p.duration, 0)}` : "", ` · 클립 ${p.clip_count}개`)),
+          new Date(p.created_at * 1000).toLocaleString("ko-KR"),
+          p.kind === "photo" ? ` · 사진 ${p.photo_count}장${p.duration ? ` · ${fmt(p.duration, 0)}` : ""}`
+            : [p.duration ? ` · 원본 ${fmt(p.duration, 0)}` : "", ` · 클립 ${p.clip_count}개`])),
       h("span", { class: "badge " + ({ ready: "ok", error: "err" }[p.status] || "warn") }, STATUS_LABEL[p.status] || p.status),
       h("button", { class: "ghost small danger", title: "삭제", onclick: async e => {
         e.preventDefault();
         if (!confirm(`"${p.name}" 프로젝트를 삭제할까요?`)) return;
         await api(`/api/projects/${p.id}`, { method: "DELETE" }); route();
       } }, "삭제"))))
-    : h("div", { class: "empty" }, "아직 프로젝트가 없어요. 왼쪽에서 영상을 올려보세요.");
+    : h("div", { class: "empty" }, "아직 프로젝트가 없어요. 왼쪽에서 영상이나 사진을 올려보세요.");
 
-  app.replaceChildren(topbar(), h("main", { class: "home" },
-    h("section", { class: "card" }, h("h2", {}, "새 영상으로 숏츠 만들기"),
+  const switchMode = m => { sessionStorage.setItem("legend-create", m); homeView(m); };
+  const modeTabs = h("div", { class: "mode-tabs" },
+    h("button", { class: mode === "video" ? "on" : "", onclick: () => switchMode("video") }, "🎬 영상으로"),
+    photoCat ? h("button", { class: mode === "photo" ? "on" : "", onclick: () => switchMode("photo") }, "📸 사진으로") : null);
+  const videoCard = h("section", { class: "card" }, modeTabs, h("h2", {}, "긴 영상에서 숏츠 뽑기"),
       h("div", { class: "field" }, drop, videoInput),
       h("div", { class: "field" }, h("label", {}, "프로젝트 이름"), nameIn),
       h("div", { class: "row field" }, h("div", { class: "grow" }, h("label", {}, "클립 길이"), length), h("div", { style: { width: "90px" } }, h("label", {}, "개수"), top)),
@@ -249,7 +257,11 @@ async function homeView() {
       h("div", { class: "field" }, h("label", {}, "하이라이트 추천 방식"), selector),
       h("div", { class: "field" }, h("label", {}, "자막 파일 (선택, .json)"), h("div", { class: "row" }, h("button", { class: "small", onclick: () => trInput.click() }, "선택"), trLabel), trInput),
       h("div", { class: "field" }, progress), submit,
-      h("p", { class: "hint" }, "본인이 권리를 가진 영상만 업로드하세요. 영상이 없다면 ", h("a", { href: "#/market" }, "클리핑 마켓"), "에서 시작해 보세요.")),
+      h("p", { class: "hint" }, "본인이 권리를 가진 영상만 업로드하세요. 영상이 없다면 ", h("a", { href: "#/market" }, "클리핑 마켓"), "이나 📸 사진으로 시작해 보세요."));
+  const photoCard = photoCat && mode === "photo"
+    ? h("section", { class: "card" }, modeTabs, h("h2", {}, "사진으로 숏츠 만들기"), photoCreateForm(photoCat, ME?.features || {})) : null;
+  app.replaceChildren(topbar(), h("main", { class: "home" },
+    photoCard || videoCard,
     h("section", {}, h("h2", { style: { fontSize: "16px", margin: "0 0 14px" } }, "내 프로젝트"), list)));
 }
 

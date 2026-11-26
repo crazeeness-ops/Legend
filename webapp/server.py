@@ -110,7 +110,7 @@ def create_app(data_dir: str | Path = "data", *, workers: int = 2, public_url: s
         return JSONResponse({"detail": str(exc)}, status_code=402)
 
     # ------------------------------------------------------------------ access control
-    project_path = re.compile(r"^/api/projects/([^/]+)")
+    project_path = re.compile(r"^/api/(?:photo-)?projects/([^/]+)")
     job_path = re.compile(r"^/api/jobs/([^/]+)")
 
     @app.middleware("http")
@@ -313,6 +313,8 @@ def create_app(data_dir: str | Path = "data", *, workers: int = 2, public_url: s
     @app.get("/api/projects/{pid}")
     def get_project(pid: str):
         p = store.get(pid)
+        if p.get("kind") == "photo":
+            return p
         if p["status"] == "ready":
             p["clips"] = [store.clip_view(pid, c) for c in p["clips"]]
         info = probe(str(store.video_path(pid)))
@@ -494,7 +496,7 @@ def create_app(data_dir: str | Path = "data", *, workers: int = 2, public_url: s
         return j
 
     # ------------------------------------------------------------------ YouTube publishing
-    from . import billing, campaigns, channel, publish, sales
+    from . import billing, campaigns, channel, photo_projects, publish, sales
     from .payments import DisabledPayments, MockPayments, TossProvider
     from .toss import TossClient, TossConfig
     from .youtube import AccountRegistry, OAuthConfig
@@ -511,6 +513,7 @@ def create_app(data_dir: str | Path = "data", *, workers: int = 2, public_url: s
                           else MockPayments() if allow_mock_payments else DisabledPayments())
     sales.register(app, app.state.youtube)
     billing.register(app, toss, public_url, scheduler_interval=billing_interval)
+    photo_projects.register(app, app.state.youtube)
 
     # ------------------------------------------------------------------ frontend
     app.mount("/static", StaticFiles(directory=STATIC), name="static")

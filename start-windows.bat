@@ -17,6 +17,7 @@ echo [2/3] 필요한 프로그램 설치 중... 처음에는 몇 분 걸려요
 python -m pip install --upgrade pip >nul
 pip install -r requirements.txt
 if errorlevel 1 goto pipfail
+pip install -r requirements-optional.txt >nul 2>nul
 echo [3/3] Legend Clips 체험 모드를 시작해요. 브라우저가 열려요.
 python -m webapp demo
 pause

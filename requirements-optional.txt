@@ -1,0 +1,2 @@
+# optional extras: installed separately so a missing wheel never blocks setup
+pillow-heif>=0.18  # iPhone HEIC photos
