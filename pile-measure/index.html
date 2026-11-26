@@ -126,6 +126,38 @@ details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
   background: var(--ink); color: var(--surface); padding: 9px 14px; border-radius: 8px; font-size: 13px; z-index: 20;
   max-width: calc(100% - 32px); text-align: center; box-shadow: 0 6px 20px rgba(0,0,0,.25);
 }
+.cam { position: fixed; inset: 0; z-index: 30; background: #000; color: #f2f4f2; overflow: hidden; }
+.cam video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+.cam-guide { position: absolute; inset: 0; pointer-events: none; }
+.cam-guide i { position: absolute; background: rgba(255,255,255,.22); }
+.cam-guide i:nth-child(1) { left: 33.33%; top: 0; bottom: 0; width: 1px; }
+.cam-guide i:nth-child(2) { left: 66.66%; top: 0; bottom: 0; width: 1px; }
+.cam-guide i:nth-child(3) { top: 33.33%; left: 0; right: 0; height: 1px; }
+.cam-guide i:nth-child(4) { top: 66.66%; left: 0; right: 0; height: 1px; }
+.cam-guide b { position: absolute; left: 50%; top: 50%; width: 26px; height: 26px; margin: -13px 0 0 -13px; border: 2px solid #ffc21a; border-radius: 50%; }
+.cam-top {
+  position: absolute; top: calc(12px + env(safe-area-inset-top, 0px)); left: max(12px, env(safe-area-inset-left, 0px)); right: max(12px, env(safe-area-inset-right, 0px));
+  display: flex; justify-content: center; pointer-events: none;
+}
+.cam-top span { background: rgba(10,12,11,.72); padding: 7px 12px; border-radius: 999px; font-size: 13px; text-align: center; border: 1px solid rgba(255,255,255,.14); }
+.cam-err {
+  position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(340px, calc(100% - 32px));
+  background: rgba(20,24,22,.94); border: 1px solid rgba(255,255,255,.16); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; text-align: center;
+}
+.cam-err p { margin: 0; line-height: 1.55; font-size: 14px; }
+.cam-bar {
+  position: absolute; left: 0; right: 0; bottom: 0; display: flex; align-items: center; justify-content: space-between;
+  padding-top: 18px; padding-bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(28px, env(safe-area-inset-left, 0px)); padding-right: max(28px, env(safe-area-inset-right, 0px));
+  background: linear-gradient(transparent, rgba(0,0,0,.6));
+}
+.cam-side { width: 48px; height: 48px; border-radius: 50%; border: 1px solid rgba(255,255,255,.25); background: rgba(10,12,11,.6); color: #f2f4f2; display: grid; place-items: center; cursor: pointer; }
+.cam-side svg { width: 22px; height: 22px; }
+.cam-shutter { width: 76px; height: 76px; border-radius: 50%; border: 4px solid #fff; background: transparent; padding: 4px; cursor: pointer; }
+.cam-shutter span { display: block; width: 100%; height: 100%; border-radius: 50%; background: #ffc21a; transition: transform .08s; }
+.cam-shutter:active span { transform: scale(.88); }
+.cam-shutter:disabled { opacity: .4; }
+.cam button:focus-visible { outline: 2px solid #ffc21a; outline-offset: 3px; }
 @media (min-width: 900px) {
   .app { grid-template-columns: minmax(0, 1fr) 390px; grid-template-rows: auto minmax(0, 1fr); }
   header { grid-column: 1 / -1; }
@@ -152,10 +184,10 @@ details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
         <small>사진 한 장 + 기준 치수로 말뚝 사이 거리를 잽니다</small>
       </div>
     </div>
-    <label class="btn primary" for="camInput">
+    <button type="button" class="btn primary" id="camBtn">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
       <span>촬영<span class="lbl-long">하기</span></span>
-    </label>
+    </button>
     <label class="btn" for="fileInput">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="m3 16 5-5 4 4 3-3 6 6"/></svg>
       <span>사진<span class="lbl-long"> 불러오기</span></span>
@@ -251,6 +283,20 @@ details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
       </p>
     </section>
   </aside>
+</div>
+<div class="cam" id="cam" hidden role="dialog" aria-label="카메라">
+  <video id="camVideo" playsinline muted autoplay></video>
+  <div class="cam-guide" aria-hidden="true"><i></i><i></i><i></i><i></i><b></b></div>
+  <div class="cam-top"><span id="camTip">기준 사각형과 말뚝 밑동이 모두 화면에 들어오게 찍으세요</span></div>
+  <div class="cam-err" id="camErr" hidden>
+    <p id="camErrMsg"></p>
+    <label class="btn primary" for="camInput">기본 카메라 앱으로 찍기</label>
+  </div>
+  <div class="cam-bar">
+    <button type="button" class="cam-side" id="camClose" aria-label="카메라 닫기"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+    <button type="button" class="cam-shutter" id="camShot" aria-label="사진 찍기"><span></span></button>
+    <button type="button" class="cam-side" id="camFlip" aria-label="전면·후면 카메라 전환"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><path d="M9.5 12.5a2.8 2.8 0 0 1 5-1.2M14.5 14a2.8 2.8 0 0 1-5 1.2"/><path d="M14.8 9.6v1.9h-1.9M9.2 16.6v-1.9h1.9"/></svg></button>
+  </div>
 </div>
 <div class="toast" id="toast" hidden></div>
 
@@ -756,7 +802,80 @@ details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
     state.refPts = []; state.piles = []; state.selected = null; state.mode = "ref";
     view.touched = false; fit(); updateUI();
   }
-  $("camInput").onchange = (e) => { loadFile(e.target.files[0]); e.target.value = ""; };
+  $("camInput").onchange = (e) => { closeCam(); loadFile(e.target.files[0]); e.target.value = ""; };
+
+  // ---------- live camera ----------
+  const video = $("camVideo");
+  let stream = null, facing = "environment", camOpen = false;
+  function cameraAllowedHere() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return false;
+    try {
+      const fp = document.permissionsPolicy || document.featurePolicy;
+      if (fp && typeof fp.allowsFeature === "function" && !fp.allowsFeature("camera")) return false;
+    } catch {}
+    return true;
+  }
+  function stopStream() {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    stream = null; video.srcObject = null;
+  }
+  function camError(msg) {
+    $("camErrMsg").textContent = msg; $("camErr").hidden = false; $("camShot").disabled = true;
+  }
+  async function startStream() {
+    stopStream();
+    $("camErr").hidden = true; $("camShot").disabled = true;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: facing }, width: { ideal: 3840 }, height: { ideal: 2160 } },
+      });
+      if (!camOpen) { stopStream(); return; }
+      video.srcObject = stream;
+      await video.play().catch(() => {});
+      $("camShot").disabled = false;
+    } catch (err) {
+      const name = err && err.name;
+      if (name === "NotAllowedError" || name === "SecurityError")
+        camError("카메라 권한이 막혀 있습니다. 브라우저 주소창의 권한 설정에서 카메라를 허용하거나, 아래 버튼으로 기본 카메라 앱을 쓰세요.");
+      else if (name === "NotFoundError" || name === "OverconstrainedError")
+        camError("이 기기에서 카메라를 찾지 못했습니다. 아래 버튼으로 기본 카메라 앱을 쓰세요.");
+      else camError("카메라를 열 수 없습니다. 다른 앱이 카메라를 쓰고 있는지 확인하거나, 아래 버튼으로 기본 카메라 앱을 쓰세요.");
+    }
+  }
+  function openCam() {
+    if (!cameraAllowedHere()) { $("camInput").click(); return; }  // e.g. inside a frame that blocks the camera
+    camOpen = true; $("cam").hidden = false;
+    startStream();
+  }
+  function closeCam() {
+    camOpen = false; stopStream(); $("cam").hidden = true;
+  }
+  function shoot() {
+    const w = video.videoWidth, h = video.videoHeight;
+    if (!w || !h) return;
+    const cv = document.createElement("canvas"); cv.width = w; cv.height = h;
+    cv.getContext("2d").drawImage(video, 0, 0, w, h);
+    $("camShot").disabled = true;
+    cv.toBlob((blob) => {
+      closeCam();
+      if (!blob) { toast("사진을 만들지 못했습니다. 다시 찍어 주세요."); return; }
+      loadFile(blob);
+    }, "image/jpeg", 0.92);
+  }
+  $("camBtn").onclick = openCam;
+  $("camClose").onclick = closeCam;
+  $("camShot").onclick = shoot;
+  $("camFlip").onclick = () => { facing = facing === "environment" ? "user" : "environment"; startStream(); };
+  document.addEventListener("keydown", (e) => {
+    if (!camOpen) return;
+    if (e.key === "Escape") closeCam();
+    else if (e.key === " " || e.key === "Enter") { if (e.target === document.body) { e.preventDefault(); shoot(); } }
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (!camOpen) return;
+    if (document.hidden) stopStream(); else startStream();
+  });
   $("fileInput").onchange = (e) => { loadFile(e.target.files[0]); e.target.value = ""; };
 
   // ---------- export ----------
