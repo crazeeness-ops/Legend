@@ -9,7 +9,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
-from .models import Candidate, Sentence, Transcript
+from .models import Candidate, Clip, Sentence, Transcript
 from .postprocess import finalize
 from .segment import split_sentences
 from .signals import annotate_retention, annotate_sentences, load_audio_rms
@@ -86,10 +86,11 @@ def run(
     timings["signals"] = time.perf_counter() - t1
 
     t2 = time.perf_counter()
+    min_len, max_len = fit_lengths(cfg.min_len, cfg.max_len, transcript.duration)
     candidates = selector.select(
         sentences,
-        min_len=cfg.min_len,
-        max_len=cfg.max_len,
+        min_len=min_len,
+        max_len=max_len,
         target_count=cfg.top_n,
         language=cfg.language or transcript.language,
         user_prompt=cfg.user_prompt,
@@ -98,10 +99,12 @@ def run(
 
     clips = finalize(
         candidates, sentences,
-        min_len=cfg.min_len, max_len=cfg.max_len, top_n=cfg.top_n,
+        min_len=min_len, max_len=max_len, top_n=cfg.top_n,
         total_duration=transcript.duration,
         llm_weight=0.6 if retention else 0.7,  # real audience data earns a bigger say
     )
+    if not clips and 0 < transcript.duration <= max(max_len, cfg.max_len):
+        clips = [whole_clip(sentences, transcript.duration)]
     timings["total"] = time.perf_counter() - t0
 
     return {
@@ -110,8 +113,25 @@ def run(
         "duration": round(transcript.duration, 2),
         "sentence_count": len(sentences),
         "candidate_count": len(candidates),
-        "config": {"min_len": cfg.min_len, "max_len": cfg.max_len, "top_n": cfg.top_n,
+        "config": {"min_len": min_len, "max_len": max_len, "top_n": cfg.top_n,
                    "user_prompt": cfg.user_prompt, "retention": bool(retention)},
         "timings_sec": {k: round(v, 2) for k, v in timings.items()},
         "clips": [c.to_dict() for c in clips],
     }
+
+
+def fit_lengths(min_len: float, max_len: float, duration: float) -> tuple[float, float]:
+    """Shrink the requested clip length for videos too short to hold it (e.g. a 20 s phone clip)."""
+    if duration <= 0 or duration >= min_len * 1.5:
+        return min_len, max_len
+    new_max = min(max_len, duration)
+    return round(max(3.0, min(min_len, duration * 0.4)), 2), round(new_max, 2)
+
+
+def whole_clip(sentences: list[Sentence], duration: float) -> Clip:
+    """Last resort for short or speechless videos: the whole video becomes one short."""
+    words = [{"text": w.text, "start": w.start, "end": w.end} for x in sentences for w in x.words]
+    return Clip(rank=1, start=0.0, end=round(duration, 2),
+                start_sid=sentences[0].id if sentences else 0, end_sid=sentences[-1].id if sentences else 0,
+                title=(sentences[0].text[:40] if sentences else "전체 영상"), hook="", reason="짧은 영상이라 전체를 한 클립으로 만들었어요",
+                score=50, score_detail={}, keywords=[], text=" ".join(x.text for x in sentences), words=words)

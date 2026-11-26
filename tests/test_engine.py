@@ -258,3 +258,25 @@ def test_transcribe_falls_back_to_cpu_when_cuda_libs_are_missing(tmp_path, monke
     monkeypatch.setitem(sys.modules, "faster_whisper", types.SimpleNamespace(WhisperModel=Broken))
     with pytest.raises(RuntimeError, match="corrupted"):  # unrelated errors are not hidden
         tr.transcribe(str(wav), model_size="small")
+
+
+def test_short_phone_video_still_gets_clips(tmp_path):
+    """A 20 s phone clip can't hold a 30-60 s short: lengths shrink, and at worst the whole video is used."""
+    from highlight_engine.pipeline import fit_lengths
+
+    assert fit_lengths(30, 60, 600) == (30, 60)
+    assert fit_lengths(30, 60, 20) == (8.0, 20)
+    words = []
+    t = 0.0
+    for i in range(8):
+        for w in ("오늘", "정말", "좋은", "날씨네요."):
+            words.append(Word(w, t, t + 0.5)); t += 0.6
+        t += 0.4
+    path = tmp_path / "short.json"
+    Transcript("ko", 23.0, words).save(path)
+    out = run(str(path), HeuristicSelector(), config=EngineConfig(min_len=30, max_len=60, top_n=5))
+    assert out["clips"] and all(c["end"] <= 23.0 for c in out["clips"])
+
+    Transcript("ko", 12.0, []).save(path)  # no speech at all (music, scenery)
+    out = run(str(path), HeuristicSelector(), config=EngineConfig(min_len=30, max_len=60, top_n=5))
+    assert [(c["start"], c["end"]) for c in out["clips"]] == [(0.0, 12.0)]

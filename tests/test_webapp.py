@@ -144,3 +144,22 @@ def test_apply_overrides_unit():
     apply_overrides(plan, [{"start": 0.1, "cx": 5000}, {"start": 3.0, "layout": "split"}, {"start": 9, "layout": "fit"}])
     assert plan.shots[0].layout == "track" and plan.shots[0].centers == [1920 - 304] * 2  # clamped
     assert plan.shots[1].layout == "split"  # unchanged: no split rects → override ignored, auto kept
+
+
+def test_short_video_gets_a_clip_and_renders(client, media, tmp_path):
+    """A ~20 s phone video with the default 30-60 s setting used to finish with 0 clips."""
+    t = build(DIALOGUE[:4])
+    t.save(tmp_path / "t.json")
+    make_video(str(tmp_path / "v.mp4"), duration=t.duration)
+    assert t.duration < 30
+    with open(tmp_path / "v.mp4", "rb") as v, open(tmp_path / "t.json", "rb") as tj:
+        r = client.post("/api/projects", files={"video": ("IMG_9463.mp4", v, "video/mp4"),
+                                                 "transcript": ("t.json", tj, "application/json")},
+                        data={"name": "짧은 영상", "length": "medium", "top": "10", "selector": "heuristic"})
+    pid = r.json()["id"]
+    job = client.app_ref.state.jobs.wait(r.json()["job_id"] or client.get(f"/api/projects/{pid}").json()["job_id"])
+    assert job["status"] == "done", job
+    p = client.get(f"/api/projects/{pid}").json()
+    assert p["clips"], "short video must still produce a clip"
+    job = client.app_ref.state.jobs.wait(client.post(f"/api/projects/{pid}/clips/c1/render").json()["job_id"], timeout=180)
+    assert job["status"] == "done", job
